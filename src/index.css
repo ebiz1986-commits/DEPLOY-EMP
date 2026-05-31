@@ -1,0 +1,50 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-serif: "Fraunces", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-ink: #1a1614;
+  --color-paper: #f4f0e8;
+  --color-card: #fdfbf6;
+  --color-line: #d8cfc0;
+  --color-accent: #b8460e;
+  --color-success-green: #1f5c4d;
+  --color-gold: #c9a227;
+  --color-bad: #9e2b25;
+  --color-info: #2d5e8c;
+  --color-muted: #8a8175;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f4f0e8;
+}
+::-webkit-scrollbar-thumb {
+  background: #d8cfc0;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #8a8175;
+}
+
+body {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+.serif-title {
+  font-family: var(--font-serif);
+}
+
+.mono-text {
+  font-family: var(--font-mono);
+}

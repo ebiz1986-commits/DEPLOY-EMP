@@ -1,0 +1,270 @@
+{
+  "categories": [
+    {
+      "id": "cat-1",
+      "name": "Construction",
+      "max_quota": 120
+    },
+    {
+      "id": "cat-2",
+      "name": "Agriculture",
+      "max_quota": 90
+    },
+    {
+      "id": "cat-3",
+      "name": "Manufacturing",
+      "max_quota": 75
+    },
+    {
+      "id": "cat-4",
+      "name": "F&B Services",
+      "max_quota": 40
+    },
+    {
+      "id": "cat-5",
+      "name": "Tech & Engineering",
+      "max_quota": 15
+    }
+  ],
+  "companies": [
+    {
+      "id": "co-1",
+      "name": "Global Pathway Holdings"
+    },
+    {
+      "id": "co-2",
+      "name": "Star Recruitment Solutions"
+    },
+    {
+      "id": "co-3",
+      "name": "Apex Transit Ltd"
+    },
+    {
+      "id": "co-4",
+      "name": "Oasis Labor Supply"
+    },
+    {
+      "id": "co-5",
+      "name": "Horizon Group Malaysia"
+    }
+  ],
+  "dropdown_options": [
+    {
+      "id": "opt-1",
+      "field": "sending_batch",
+      "value": "Batch #104"
+    },
+    {
+      "id": "opt-2",
+      "field": "sending_batch",
+      "value": "Batch #105"
+    },
+    {
+      "id": "opt-3",
+      "field": "sending_batch",
+      "value": "Batch #106"
+    },
+    {
+      "id": "opt-4",
+      "field": "sending_batch",
+      "value": "Batch #107"
+    },
+    {
+      "id": "opt-5",
+      "field": "status",
+      "value": "Pending"
+    },
+    {
+      "id": "opt-6",
+      "field": "status",
+      "value": "Visa Approved (xpact)"
+    },
+    {
+      "id": "opt-7",
+      "field": "status",
+      "value": "Visa Reject (xpact)"
+    },
+    {
+      "id": "opt-8",
+      "field": "status",
+      "value": "Applied second time"
+    },
+    {
+      "id": "opt-9",
+      "field": "bureau",
+      "value": "Pending"
+    },
+    {
+      "id": "opt-10",
+      "field": "bureau",
+      "value": "Complete"
+    },
+    {
+      "id": "opt-11",
+      "field": "bureau",
+      "value": "Reject"
+    },
+    {
+      "id": "opt-12",
+      "field": "final_status",
+      "value": "Pending"
+    },
+    {
+      "id": "opt-13",
+      "field": "final_status",
+      "value": "Booked"
+    },
+    {
+      "id": "opt-14",
+      "field": "final_status",
+      "value": "Arrived"
+    }
+  ],
+  "users": [
+    {
+      "username": "recruiter",
+      "password": "password",
+      "name": "Farid (Recruiter)",
+      "role": "recruiter"
+    },
+    {
+      "username": "engineer",
+      "password": "password",
+      "name": "Ir. Tan (Engineer)",
+      "role": "engineer"
+    },
+    {
+      "username": "ops",
+      "password": "password",
+      "name": "Sarah (Operations)",
+      "role": "ops"
+    },
+    {
+      "username": "admin",
+      "password": "password",
+      "name": "Admin (System Admin)",
+      "role": "admin"
+    },
+    {
+      "username": "viewer",
+      "password": "password",
+      "name": "Viewer (Dashboard Only)",
+      "role": "viewer"
+    }
+  ],
+  "workers": [
+    {
+      "id": "w-1",
+      "name": "Mohammad Rahman",
+      "passport": "A81729381",
+      "category": "Construction",
+      "supply_company": "Global Pathway Holdings",
+      "sending_batch": "Batch #104",
+      "visa_doc_date": "2026-05-10",
+      "state": "active",
+      "doc_upload_wa": "Yes",
+      "last_updated": "2026-05-12",
+      "status": "Visa Approved (xpact)",
+      "bureau": "Complete",
+      "final_status": "Booked",
+      "created_at": "2026-05-01T04:23:10.000Z"
+    },
+    {
+      "id": "w-2",
+      "name": "Abdul Hasnat",
+      "passport": "B92837412",
+      "category": "Construction",
+      "supply_company": "Global Pathway Holdings",
+      "sending_batch": "Batch #104",
+      "visa_doc_date": "2026-05-10",
+      "state": "active",
+      "doc_upload_wa": "Yes",
+      "last_updated": "2026-05-15",
+      "status": "Visa Approved (xpact)",
+      "bureau": "Complete",
+      "final_status": "Arrived",
+      "created_at": "2026-05-01T05:11:00.000Z"
+    },
+    {
+      "id": "w-3",
+      "name": "Chen Wei",
+      "passport": "E58210943",
+      "category": "Manufacturing",
+      "supply_company": "Star Recruitment Solutions",
+      "sending_batch": "Batch #105",
+      "visa_doc_date": "2026-05-18",
+      "state": "active",
+      "doc_upload_wa": "Yes",
+      "last_updated": "2026-05-20",
+      "status": "Visa Approved (xpact)",
+      "bureau": "Pending",
+      "final_status": "Pending",
+      "created_at": "2026-05-12T08:14:00.000Z"
+    },
+    {
+      "id": "w-4",
+      "name": "Suresh Pillai",
+      "passport": "Z94012847",
+      "category": "Agriculture",
+      "supply_company": "Apex Transit Ltd",
+      "state": "pending",
+      "doc_upload_wa": "No",
+      "status": "Pending",
+      "bureau": "Pending",
+      "final_status": "Pending",
+      "created_at": "2026-05-28T09:00:00.000Z"
+    },
+    {
+      "id": "w-5",
+      "name": "Myat Moe",
+      "passport": "M73019482",
+      "category": "Agriculture",
+      "supply_company": "Apex Transit Ltd",
+      "sending_batch": "Batch #106",
+      "visa_doc_date": "2026-05-29",
+      "state": "active",
+      "doc_upload_wa": "No",
+      "status": "Pending",
+      "bureau": "Pending",
+      "final_status": "Pending",
+      "created_at": "2026-05-28T09:12:00.000Z"
+    },
+    {
+      "id": "w-6",
+      "name": "Aris Munandar",
+      "passport": "I10398472",
+      "category": "F&B Services",
+      "supply_company": "Oasis Labor Supply",
+      "state": "pending",
+      "doc_upload_wa": "No",
+      "status": "Pending",
+      "bureau": "Pending",
+      "final_status": "Pending",
+      "created_at": "2026-05-29T10:30:00.000Z"
+    },
+    {
+      "id": "w-7",
+      "name": "Sanjay Kumar",
+      "passport": "K48293741",
+      "category": "Tech & Engineering",
+      "supply_company": "Horizon Group Malaysia",
+      "sending_batch": "Batch #105",
+      "visa_doc_date": "2026-05-19",
+      "state": "active",
+      "doc_upload_wa": "Yes",
+      "last_updated": "2026-05-22",
+      "status": "Visa Approved (xpact)",
+      "bureau": "Complete",
+      "final_status": "Arrived",
+      "created_at": "2026-05-15T12:00:00.000Z"
+    }
+  ],
+  "project_detail": {
+    "name": "Sanken Overseas Infrastructure Link MRT Project",
+    "client": "Malaysia MRT Corp",
+    "engineer_in_charge": "Ir. Tan (Engineer)",
+    "admin_coordinator": "Admin (System Admin)",
+    "location": "Kuala Lumpur Central Hub",
+    "contract_number": "MRT-2026-SANKEN-0982"
+  }
+}
