@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { UserRole } from "../types";
+import { User, UserRole } from "../types";
 import { KeyRound, ShieldAlert, Sparkles, User as UserIcon } from "lucide-react";
 
 interface LoginViewProps {
-  onLogin: (username: string, role: UserRole, name: string) => void;
+  onLogin: (user: User) => void;
 }
 
 export default function LoginView({ onLogin }: LoginViewProps) {
@@ -39,7 +39,7 @@ export default function LoginView({ onLogin }: LoginViewProps) {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        onLogin(data.user.username, data.user.role, data.user.name);
+        onLogin(data.user);
       } else {
         setError(data.message || "Invalid credentials.");
       }

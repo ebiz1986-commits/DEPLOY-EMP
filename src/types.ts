@@ -5,6 +5,8 @@ export interface User {
   password?: string;
   name: string;
   role: UserRole;
+  assigned_projects?: string[];
+  recruiter_company?: string;
 }
 
 export interface Worker {
@@ -22,6 +24,7 @@ export interface Worker {
   bureau: string; // e.g. "Pending", "Complete", "Reject"
   final_status: string; // e.g. "Pending", "Booked", "Arrived"
   created_at: string;
+  project_id?: string; // Support several projects
 }
 
 export interface Category {
@@ -42,12 +45,24 @@ export interface DropdownOption {
 }
 
 export interface ProjectDetail {
+  id: string;
   name: string;
   client: string;
   engineer_in_charge: string;
   admin_coordinator: string;
   location: string;
   contract_number: string;
+}
+
+export interface SystemNotification {
+  id: string;
+  project_id?: string;
+  message: string;
+  sender: string;
+  role?: UserRole;
+  created_at: string;
+  type: "info" | "success" | "warning" | "error";
+  target_user?: string;
 }
 
 export interface DbState {
@@ -57,4 +72,7 @@ export interface DbState {
   dropdown_options: DropdownOption[];
   users: User[];
   project_detail?: ProjectDetail;
+  projects?: ProjectDetail[];
+  selected_project_id?: string;
+  notifications?: SystemNotification[];
 }

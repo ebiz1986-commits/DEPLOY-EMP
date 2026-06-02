@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Category, Company, Worker, DropdownOption } from "../types";
+import { Category, Company, Worker, DropdownOption, ProjectDetail, User } from "../types";
 import CompanyFilterHeader from "./CompanyFilterHeader";
 import { 
   ClipboardList, 
@@ -9,7 +9,8 @@ import {
   Building2, 
   Clock, 
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Lock
 } from "lucide-react";
 
 interface OperationsViewProps {
@@ -17,8 +18,12 @@ interface OperationsViewProps {
   categories: Category[];
   companies: Company[];
   dropdownOptions: DropdownOption[];
+  projects?: ProjectDetail[];
+  selectedProjectId?: string;
+  projectDetail?: ProjectDetail | null;
   onRefresh: () => void;
   onUpdateWorker: (id: string, updates: Partial<Worker>) => Promise<boolean>;
+  currentUser?: User;
 }
 
 export default function OperationsView({
@@ -26,8 +31,12 @@ export default function OperationsView({
   categories,
   companies,
   dropdownOptions,
+  projects = [],
+  selectedProjectId = "",
+  projectDetail,
   onRefresh,
-  onUpdateWorker
+  onUpdateWorker,
+  currentUser
 }: OperationsViewProps) {
   
   // Filtering States
@@ -56,9 +65,14 @@ export default function OperationsView({
     return categories.map((c) => c.name);
   }, [categories]);
 
+  // Compute scoped worker roster linked exclusively to the active selected project
+  const scopedWorkers = useMemo(() => {
+    return workers.filter((w) => w.project_id === selectedProjectId);
+  }, [workers, selectedProjectId]);
+
   // Active list workers (workers with state = active only)
   const activeWorkers = useMemo(() => {
-    return workers.filter((w) => {
+    return scopedWorkers.filter((w) => {
       // Must be active
       if (w.state !== "active") return false;
 
@@ -82,7 +96,7 @@ export default function OperationsView({
 
       return true;
     });
-  }, [workers, selectedCompany, selectedCategory, searchQuery]);
+  }, [scopedWorkers, selectedCompany, selectedCategory, searchQuery]);
 
   const showToast = (text: string, type: "success" | "error" = "success") => {
     setToastMessage({ text, type });
@@ -128,6 +142,26 @@ export default function OperationsView({
         subtitle="Manage approved visa documentation statuses, bureau alignments, and arrival times."
         onRefresh={onRefresh}
       />
+
+      {/* Project Target Info Banner */}
+      {projectDetail ? (
+        <div className="bg-amber-50/40 border border-line rounded-lg p-3 text-xs flex items-center justify-between font-sans">
+          <div className="flex items-center gap-2">
+            <ClipboardList className="w-4 h-4 text-accent shrink-0" />
+            <div>
+              <span className="font-semibold text-ink">Active Destination Project: </span>
+              <span className="text-accent font-bold">{projectDetail.name}</span>
+            </div>
+          </div>
+          <div className="text-[10px] font-mono text-muted">
+            Lead Coordinator: <span className="font-semibold text-ink">{projectDetail.admin_coordinator}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-red-50 text-bad border border-bad/20 p-3 rounded-lg text-xs font-sans">
+          Warning: No active project focused. Please select a project context in the sidebar or dashboard.
+        </div>
+      )}
 
       {/* Floating Dynamic Feedback Toast */}
       {toastMessage && (
@@ -183,96 +217,166 @@ export default function OperationsView({
                   </td>
                 </tr>
               ) : (
-                activeWorkers.map((w) => (
-                  <tr key={w.id} className="hover:bg-paper/10 transition-colors">
-                    
-                    {/* Worker credentials info */}
-                    <td className="p-3 pl-5 max-w-[150px]">
-                      <div className="font-semibold text-ink font-display truncate">{w.name}</div>
-                      <div className="text-[10px] text-muted truncate" title={w.supply_company}>{w.supply_company}</div>
-                    </td>
+                activeWorkers.map((w) => {
+                  const isDocUploadLocked = currentUser?.role !== "admin" && w.doc_upload_wa === "Yes";
+                  const isStatusLocked = w.doc_upload_wa !== "Yes" || (currentUser?.role !== "admin" && w.status !== "Pending");
+                  const isBureauLocked = w.doc_upload_wa !== "Yes" || 
+                    (currentUser?.role !== "admin" && currentUser?.role !== "recruiter") || 
+                    (currentUser?.role !== "admin" && w.bureau !== "Pending");
+                  const isFinalStatusLocked = w.doc_upload_wa !== "Yes" || (currentUser?.role !== "admin" && w.final_status !== "Pending");
 
-                    {/* Passport */}
-                    <td className="p-3 font-mono text-ink font-medium">
-                      {w.passport}
-                    </td>
+                  return (
+                    <tr key={w.id} className="hover:bg-paper/10 transition-colors">
+                      
+                      {/* Worker credentials info */}
+                      <td className="p-3 pl-5 max-w-[150px]">
+                        <div className="font-semibold text-ink font-display truncate">{w.name}</div>
+                        <div className="text-[10px] text-muted truncate" title={w.supply_company}>{w.supply_company}</div>
+                      </td>
 
-                    {/* Category */}
-                    <td className="p-3">
-                      <span className="px-2 py-0.5 bg-paper border border-line/40 text-[10px] text-ink rounded font-semibold whitespace-nowrap">
-                        {w.category}
-                      </span>
-                    </td>
+                      {/* Passport */}
+                      <td className="p-3 font-mono text-ink font-medium">
+                        {w.passport}
+                      </td>
 
-                    {/* WhatsApp Doc Checked checkbox list toggle */}
-                    <td className="p-3">
-                      <select
-                        value={w.doc_upload_wa}
-                        onChange={(e) => handleFieldChange(w.id, "doc_upload_wa", e.target.value)}
-                        className={`text-[11px] px-2.5 py-1 font-mono rounded border outline-none cursor-pointer ${
-                          w.doc_upload_wa === "Yes" 
-                            ? "bg-success-green/10 text-success-green border-success-green/40" 
-                            : "bg-red-50 text-bad border-bad/40"
-                        }`}
-                      >
-                        <option value="No">No (Checked Out)</option>
-                        <option value="Yes">Yes (WhatsApp OK)</option>
-                      </select>
-                    </td>
-
-                    {/* Read-only Auto Stamp */}
-                    <td className="p-3 font-mono text-[10px] text-muted">
-                      {w.last_updated ? (
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-success-green" />
-                          <span>{w.last_updated}</span>
+                      {/* Category */}
+                      <td className="p-3">
+                        <span className="px-2 py-0.5 bg-paper border border-line/40 text-[10px] text-ink rounded font-semibold whitespace-nowrap">
+                          {w.category}
                         </span>
-                      ) : (
-                        <span className="italic text-stone-400">Not check-in</span>
-                      )}
-                    </td>
+                      </td>
 
-                    {/* Visa Status List Picker */}
-                    <td className="p-2">
-                      <select
-                        value={w.status}
-                        onChange={(e) => handleFieldChange(w.id, "status", e.target.value)}
-                        className="text-xs px-2 py-1 bg-paper/20 border border-line focus:border-accent rounded outline-none cursor-pointer w-full text-ink font-medium"
-                      >
-                        {statusOptions.map((opt) => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </select>
-                    </td>
+                      {/* WhatsApp Doc Checked checkbox list toggle */}
+                      <td className="p-3">
+                        <div className="flex items-center gap-1.5 min-w-[130px]">
+                          <select
+                            value={w.doc_upload_wa}
+                            onChange={(e) => handleFieldChange(w.id, "doc_upload_wa", e.target.value)}
+                            disabled={isDocUploadLocked}
+                            className={`text-[11px] px-2.5 py-1 font-mono rounded border outline-none w-full ${
+                              isDocUploadLocked 
+                                ? "bg-stone-100 text-stone-400 border-stone-200 cursor-not-allowed" 
+                                : "cursor-pointer"
+                            } ${
+                              w.doc_upload_wa === "Yes" 
+                                ? "bg-success-green/10 text-success-green border-success-green/40 font-semibold" 
+                                : "bg-red-50 text-bad border-bad/40"
+                            }`}
+                          >
+                            <option value="No">No (Checked Out)</option>
+                            <option value="Yes">Yes (WhatsApp OK)</option>
+                          </select>
+                          {isDocUploadLocked && (
+                            <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" title="Locked: Only system admin can modify after change applied" />
+                          )}
+                        </div>
+                      </td>
 
-                    {/* Bureau Option Picker */}
-                    <td className="p-2">
-                      <select
-                        value={w.bureau}
-                        onChange={(e) => handleFieldChange(w.id, "bureau", e.target.value)}
-                        className="text-xs px-2 py-1 bg-paper/20 border border-line focus:border-accent rounded outline-none cursor-pointer w-full text-ink font-medium"
-                      >
-                        {bureauOptions.map((opt) => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </select>
-                    </td>
+                      {/* Read-only Auto Stamp */}
+                      <td className="p-3 font-mono text-[10px] text-muted">
+                        {w.last_updated ? (
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-success-green" />
+                            <span>{w.last_updated}</span>
+                          </span>
+                        ) : (
+                          <span className="italic text-stone-400">Not check-in</span>
+                        )}
+                      </td>
 
-                    {/* Final Arrival Status Selector */}
-                    <td className="p-2 pr-5">
-                      <select
-                        value={w.final_status}
-                        onChange={(e) => handleFieldChange(w.id, "final_status", e.target.value)}
-                        className="text-xs px-2 py-1 bg-paper/20 border border-line focus:border-accent rounded outline-none cursor-pointer w-full text-ink font-medium"
-                      >
-                        {finalStatusOptions.map((opt) => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </select>
-                    </td>
+                      {/* Visa Status List Picker */}
+                      <td className="p-2 min-w-[170px]">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1">
+                            <select
+                              value={w.status}
+                              onChange={(e) => handleFieldChange(w.id, "status", e.target.value)}
+                              disabled={isStatusLocked}
+                              className={`text-xs px-2 py-1 border rounded outline-none w-full font-medium ${
+                                isStatusLocked 
+                                  ? "bg-stone-50 text-stone-400 border-stone-200 cursor-not-allowed" 
+                                  : "bg-paper/20 border-line focus:border-accent cursor-pointer text-ink"
+                              }`}
+                            >
+                              {statusOptions.map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                            {isStatusLocked && (
+                              <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" title={w.doc_upload_wa !== "Yes" ? "Locked: 'DOC upload' must be Yes" : "Locked: Only system admin can modify after change applied"} />
+                            )}
+                          </div>
+                          {w.doc_upload_wa !== "Yes" && (
+                            <div className="text-[9px] text-bad font-mono pl-1">Requires DOC Upload</div>
+                          )}
+                        </div>
+                      </td>
 
-                  </tr>
-                ))
+                      {/* Bureau Option Picker */}
+                      <td className="p-2 min-w-[140px]">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1">
+                            <select
+                              value={w.bureau}
+                              onChange={(e) => handleFieldChange(w.id, "bureau", e.target.value)}
+                              disabled={isBureauLocked}
+                              className={`text-xs px-2 py-1 border rounded outline-none w-full font-medium ${
+                                isBureauLocked 
+                                  ? "bg-stone-50 text-stone-400 border-stone-200 cursor-not-allowed" 
+                                  : "bg-paper/20 border-line focus:border-accent cursor-pointer text-ink"
+                              }`}
+                            >
+                              {bureauOptions.map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                            {isBureauLocked && (
+                              <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" title={
+                                w.doc_upload_wa !== "Yes" 
+                                  ? "Locked: 'DOC upload' must be Yes" 
+                                  : (currentUser?.role !== "admin" && currentUser?.role !== "recruiter")
+                                    ? "Locked: Bureau Clearance can only be updated by Recruitment Company"
+                                    : "Locked: Only system admin can modify after change applied"
+                              } />
+                            )}
+                          </div>
+                          {w.doc_upload_wa !== "Yes" && (
+                            <div className="text-[9px] text-bad font-mono pl-1">Requires DOC Upload</div>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Final Arrival Status Selector */}
+                      <td className="p-2 pr-5 min-w-[140px]">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1">
+                            <select
+                              value={w.final_status}
+                              onChange={(e) => handleFieldChange(w.id, "final_status", e.target.value)}
+                              disabled={isFinalStatusLocked}
+                              className={`text-xs px-2 py-1 border rounded outline-none w-full font-medium ${
+                                isFinalStatusLocked 
+                                  ? "bg-stone-50 text-stone-400 border-stone-200 cursor-not-allowed" 
+                                  : "bg-paper/20 border-line focus:border-accent cursor-pointer text-ink"
+                              }`}
+                            >
+                              {finalStatusOptions.map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                            {isFinalStatusLocked && (
+                              <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" title={w.doc_upload_wa !== "Yes" ? "Locked: 'DOC upload' must be Yes" : "Locked: Only system admin can modify after change applied"} />
+                            )}
+                          </div>
+                          {w.doc_upload_wa !== "Yes" && (
+                            <div className="text-[9px] text-bad font-mono pl-1">Requires DOC Upload</div>
+                          )}
+                        </div>
+                      </td>
+
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

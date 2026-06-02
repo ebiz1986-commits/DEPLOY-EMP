@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
-import { DbState, Worker, Category, Company, DropdownOption, User } from "./src/types";
+import { DbState, Worker, Category, Company, DropdownOption, User, UserRole } from "./src/types";
 
 const PORT = 3000;
 const DB_FILE = path.join(process.cwd(), "db.json");
@@ -43,9 +43,9 @@ const readDb = (): DbState => {
         { id: "opt-14", field: "final_status", value: "Arrived" }
       ],
       users: [
-        { username: "recruiter", password: "password", name: "Farid (Recruiter)", role: "recruiter" },
-        { username: "engineer", password: "password", name: "Ir. Tan (Engineer)", role: "engineer" },
-        { username: "ops", password: "password", name: "Sarah (Operations)", role: "ops" },
+        { username: "recruiter", password: "password", name: "Farid (Recruiter)", role: "recruiter", assigned_projects: ["proj-1"] },
+        { username: "engineer", password: "password", name: "Ir. Tan (Engineer)", role: "engineer", assigned_projects: ["proj-1"] },
+        { username: "ops", password: "password", name: "Sarah (Operations)", role: "ops", assigned_projects: ["proj-1"] },
         { username: "admin", password: "password", name: "Admin (System Admin)", role: "admin" },
         { username: "viewer", password: "password", name: "Viewer (Dashboard Only)", role: "viewer" }
       ],
@@ -157,45 +157,142 @@ const readDb = (): DbState => {
         }
       ],
       project_detail: {
+        id: "proj-1",
         name: "Sanken Overseas Infrastructure Link MRT Project",
         client: "Malaysia MRT Corp",
         engineer_in_charge: "Ir. Tan (Engineer)",
         admin_coordinator: "Admin (System Admin)",
         location: "Kuala Lumpur Central Hub",
         contract_number: "MRT-2026-SANKEN-0982"
-      }
+      },
+      projects: [
+        {
+          id: "proj-1",
+          name: "Sanken Overseas Infrastructure Link MRT Project",
+          client: "Malaysia MRT Corp",
+          engineer_in_charge: "Ir. Tan (Engineer)",
+          admin_coordinator: "Admin (System Admin)",
+          location: "Kuala Lumpur Central Hub",
+          contract_number: "MRT-2026-SANKEN-0982"
+        }
+      ],
+      selected_project_id: "proj-1"
     };
     fs.writeFileSync(DB_FILE, JSON.stringify(initialState, null, 2), "utf8");
     return initialState;
   }
   const content = fs.readFileSync(DB_FILE, "utf8");
   const db = JSON.parse(content) as DbState;
-  if (!db.project_detail) {
-    db.project_detail = {
-      name: "Sanken Overseas Infrastructure Link MRT Project",
-      client: "Malaysia MRT Corp",
-      engineer_in_charge: "Ir. Tan (Engineer)",
-      admin_coordinator: "Admin (System Admin)",
-      location: "Kuala Lumpur Central Hub",
-      contract_number: "MRT-2026-SANKEN-0982"
+  
+  // Migrate existing single project_detail to projects list
+  if (!db.projects || db.projects.length === 0) {
+    const singleProj = {
+      id: "proj-1",
+      name: db.project_detail?.name || "Sanken Overseas Infrastructure Link MRT Project",
+      client: db.project_detail?.client || "Malaysia MRT Corp",
+      engineer_in_charge: db.project_detail?.engineer_in_charge || "Ir. Tan (Engineer)",
+      admin_coordinator: db.project_detail?.admin_coordinator || "Admin (System Admin)",
+      location: db.project_detail?.location || "Kuala Lumpur Central Hub",
+      contract_number: db.project_detail?.contract_number || "MRT-2026-SANKEN-0982"
     };
+    db.projects = [singleProj];
+    db.selected_project_id = "proj-1";
+    db.project_detail = singleProj;
     fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf8");
   }
-  return db;
-};
 
-const writeDb = (state: DbState) => {
-  fs.writeFileSync(DB_FILE, JSON.stringify(state, null, 2), "utf8");
-  broadcastUpdate();
+  if (!db.selected_project_id) {
+    db.selected_project_id = db.projects[0]?.id || "proj-1";
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf8");
+  }
+
+  // Ensure current active project is mirrored in project_detail
+  const currentProj = db.projects.find(p => p.id === db.selected_project_id) || db.projects[0];
+  if (currentProj) {
+    db.project_detail = currentProj;
+  }
+
+  // Ensure all workers have project_id assigned
+  let updatedWorkers = false;
+  db.workers.forEach(w => {
+    if (!w.project_id) {
+      w.project_id = db.selected_project_id || "proj-1";
+      updatedWorkers = true;
+    }
+  });
+
+  // Ensure notifications array is loaded
+  if (!db.notifications) {
+    db.notifications = [
+      {
+        id: "notif-1",
+        message: "Sankenseas multi-project focus platform initialized.",
+        sender: "System",
+        created_at: new Date(Date.now() - 3600000 * 3).toISOString(),
+        type: "info"
+      },
+      {
+        id: "notif-2",
+        message: "Star Recruitment Solutions registered Construction candidate cohort.",
+        sender: "Farid (Recruiter)",
+        created_at: new Date(Date.now() - 3600000).toISOString(),
+        type: "success",
+        project_id: "proj-1"
+      }
+    ];
+    updatedWorkers = true;
+  }
+
+  if (updatedWorkers) {
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf8");
+  }
+
+  return db;
 };
 
 // SSE Active client connections for live updates
 let clients: express.Response[] = [];
 
-const broadcastUpdate = () => {
+const broadcastUpdate = (lastNotification?: any) => {
   clients.forEach((client) => {
-    client.write("data: reload\n\n");
+    if (lastNotification) {
+      // Send both reload signal and notification payload details as a JSON string
+      client.write(`data: ${JSON.stringify({ type: "notification", notification: lastNotification })}\n\n`);
+    } else {
+      client.write("data: reload\n\n");
+    }
   });
+};
+
+const writeDb = (state: DbState, lastNotification?: any) => {
+  fs.writeFileSync(DB_FILE, JSON.stringify(state, null, 2), "utf8");
+  broadcastUpdate(lastNotification);
+};
+
+const addSystemNotification = (
+  db: DbState,
+  message: string,
+  sender: string,
+  role: UserRole,
+  type: "info" | "success" | "warning" | "error" = "info",
+  projectId?: string,
+  targetUser?: string
+) => {
+  if (!db.notifications) {
+    db.notifications = [];
+  }
+  const newNotif = {
+    id: `notif-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+    message,
+    sender,
+    role,
+    created_at: new Date().toISOString(),
+    type,
+    project_id: projectId,
+    target_user: targetUser
+  };
+  db.notifications = [newNotif, ...db.notifications].slice(0, 100);
+  return newNotif;
 };
 
 async function startServer() {
@@ -287,11 +384,18 @@ async function startServer() {
       status: "Pending",
       bureau: "Pending",
       final_status: "Pending",
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      project_id: (w as any).project_id || db.selected_project_id || "proj-1"
     }));
 
     db.workers = [...createdWorkers, ...db.workers];
-    writeDb(db);
+    
+    const targetProjId = createdWorkers[0]?.project_id || "proj-1";
+    const proj = db.projects?.find(p => p.id === targetProjId) || db.project_detail;
+    const notifMsg = `Recruiter intake added ${createdWorkers.length} candidate(s) for project target: "${proj?.name || "Global"}"`;
+    const newNotif = addSystemNotification(db, notifMsg, "Recruiter Portal", "recruiter", "success", targetProjId);
+    
+    writeDb(db, newNotif);
 
     res.status(201).json({ success: true, count: createdWorkers.length, data: createdWorkers });
   });
@@ -335,7 +439,13 @@ async function startServer() {
     worker.last_updated = new Date().toISOString().split("T")[0];
 
     db.workers[workerIndex] = worker;
-    writeDb(db);
+    
+    // Add engineering approval notification linked to project focus
+    const projDetail = db.projects?.find(p => p.id === worker.project_id) || db.project_detail;
+    const notifMsg = `Engineer Ir. Tan approved worker candidate "${worker.name}" under "${worker.category}" category for project target: "${projDetail?.name || "Global"}"`;
+    const newNotif = addSystemNotification(db, notifMsg, "Site Engineer", "engineer", "success", worker.project_id);
+
+    writeDb(db, newNotif);
 
     res.json({ success: true, worker });
   });
@@ -352,6 +462,50 @@ async function startServer() {
     }
 
     const currentWorker = db.workers[workerIndex];
+    const callerRole = req.headers["x-caller-role"] || "";
+
+    // Rule: "BUREAU CLEARANCE" CAN UPDATE ONLY RECRUITMENT COMPANY
+    if (updates.bureau !== undefined && updates.bureau !== currentWorker.bureau) {
+      if (callerRole !== "recruiter" && callerRole !== "admin") {
+        return res.status(403).json({ success: false, message: "Only Recruitment Company or System Admin can update Bureau Clearance." });
+      }
+      if (callerRole !== "admin" && currentWorker.bureau !== "Pending") {
+        return res.status(403).json({ success: false, message: "Only System Admin can modify Bureau Clearance after it has been changed from 'Pending'." });
+      }
+    }
+
+    // Rule 2: "after admin2 change status and apply he can't change again only system admin can change"
+    // Admin2 is represented by "ops" role.
+    if (callerRole === "ops") {
+      if (updates.doc_upload_wa !== undefined && updates.doc_upload_wa !== currentWorker.doc_upload_wa) {
+        if (currentWorker.doc_upload_wa === "Yes") {
+          return res.status(403).json({ success: false, message: "Only System Admin can modify 'DOC Upload' status after it has been applied to 'Yes'." });
+        }
+      }
+      if (updates.status !== undefined && updates.status !== currentWorker.status) {
+        if (currentWorker.status !== "Pending") {
+          return res.status(403).json({ success: false, message: "Only System Admin can modify Visa Status after it has been changed from 'Pending'." });
+        }
+      }
+      if (updates.bureau !== undefined && updates.bureau !== currentWorker.bureau) {
+        if (currentWorker.bureau !== "Pending") {
+          return res.status(403).json({ success: false, message: "Only System Admin can modify Bureau Clearance after it has been changed from 'Pending'." });
+        }
+      }
+      if (updates.final_status !== undefined && updates.final_status !== currentWorker.final_status) {
+        if (currentWorker.final_status !== "Pending") {
+          return res.status(403).json({ success: false, message: "Only System Admin can modify Final Placement Status after it has been changed from 'Pending'." });
+        }
+      }
+    }
+
+    // Rule 1: "until 'doc upload' 'yes' all other drop downs should be 'pending' by default"
+    const docUploadResult = updates.doc_upload_wa !== undefined ? updates.doc_upload_wa : currentWorker.doc_upload_wa;
+    if (docUploadResult !== "Yes") {
+      updates.status = "Pending";
+      updates.bureau = "Pending";
+      updates.final_status = "Pending";
+    }
 
     // Trigger check for doc_upload_wa change -> autostamp
     if (updates.doc_upload_wa !== undefined && updates.doc_upload_wa !== currentWorker.doc_upload_wa) {
@@ -364,12 +518,58 @@ async function startServer() {
       ...updates
     };
 
-    // Rule: Recruiter Bureau pending lock check
-    // If Admin2 sets status = "Visa Approved (xpact)", worker enters recruiter bureau queue.
-    // If Admin2 sets status to other than Visa Approved, recruiter might not have permission, but backend allows updating.
+    // Special trigger: If Status is changed to Visa Approved (xpact), reset bureau to Pending (recruiter bureau queue)
+    if (updates.status === "Visa Approved (xpact)" && currentWorker.status !== "Visa Approved (xpact)") {
+      updatedWorker.bureau = "Pending";
+    }
 
     db.workers[workerIndex] = updatedWorker;
-    writeDb(db);
+
+    // Detect interesting updates to broadcast as system-wide notifications
+    let notifObj = null;
+    if (updates.status && updates.status !== currentWorker.status) {
+      notifObj = addSystemNotification(
+        db,
+        `Candidate "${updatedWorker.name}" visa status shifted to: "${updates.status}"`,
+        "Operations Admin",
+        "ops",
+        updates.status.toLowerCase().includes("approved") ? "success" : "warning",
+        updatedWorker.project_id
+      );
+
+      // Explicit Bureau Clearance Pending Notification for Recruiter
+      if (updates.status === "Visa Approved (xpact)") {
+        const bureauNotif = addSystemNotification(
+          db,
+          `Bureau Clearance is now PENDING for Candidate "${updatedWorker.name}" (Visa Approved)`,
+          "System",
+          "recruiter",
+          "warning",
+          updatedWorker.project_id
+        );
+        notifObj = bureauNotif; // Broadcast this as the primary real-time notification
+      }
+    } else if (updates.final_status && updates.final_status !== currentWorker.final_status) {
+      notifObj = addSystemNotification(
+        db,
+        `Candidate "${updatedWorker.name}" logistic phase updated to: "${updates.final_status}"`,
+        "Operations Admin",
+        "ops",
+        updates.final_status === "Arrived" ? "success" : "info",
+        updatedWorker.project_id
+      );
+    } else if (updates.bureau && updates.bureau !== currentWorker.bureau) {
+      notifObj = addSystemNotification(
+        db,
+        `Recruiter Bureau finalized clearance for "${updatedWorker.name}": ${updates.bureau}`,
+        "Recruiter Bureau",
+        "recruiter",
+        updates.bureau === "Complete" ? "success" : "error",
+        updatedWorker.project_id
+      );
+    }
+
+    writeDb(db, notifObj);
 
     res.json({ success: true, worker: updatedWorker });
   });
@@ -415,11 +615,78 @@ async function startServer() {
   });
 
   app.post("/api/config/update-project", (req, res) => {
-    const newProjectDetail = req.body;
+    const updatedProject = req.body;
     const db = readDb();
-    db.project_detail = newProjectDetail;
+    if (!db.projects) {
+      db.projects = [];
+    }
+    const idx = db.projects.findIndex(p => p.id === updatedProject.id);
+    if (idx !== -1) {
+      db.projects[idx] = updatedProject;
+    } else {
+      const fallbackId = db.selected_project_id || "proj-1";
+      const fidx = db.projects.findIndex(p => p.id === fallbackId);
+      if (fidx !== -1) {
+        db.projects[fidx] = { ...db.projects[fidx], ...updatedProject, id: fallbackId };
+      } else {
+        db.projects.push({ ...updatedProject, id: fallbackId });
+      }
+    }
+    
+    // Ensure project_detail mirrors the active selected project
+    const activeProj = db.projects.find(p => p.id === db.selected_project_id) || db.projects[0];
+    if (activeProj) {
+      db.project_detail = activeProj;
+    }
+    
     writeDb(db);
-    res.json({ success: true, project_detail: db.project_detail });
+    res.json({ success: true, project_detail: db.project_detail, projects: db.projects });
+  });
+
+  app.post("/api/config/add-project", (req, res) => {
+    const newProject = req.body;
+    if (!newProject.id) {
+      newProject.id = `proj-${Date.now()}`;
+    }
+    const db = readDb();
+    if (!db.projects) db.projects = [];
+    db.projects.push(newProject);
+    if (db.projects.length === 1) {
+      db.selected_project_id = newProject.id;
+      db.project_detail = newProject;
+    }
+    writeDb(db);
+    res.json({ success: true, projects: db.projects, selected_project_id: db.selected_project_id, project_detail: db.project_detail });
+  });
+
+  app.post("/api/config/select-project", (req, res) => {
+    const { id } = req.body;
+    const db = readDb();
+    if (!db.projects) db.projects = [];
+    const proj = db.projects.find(p => p.id === id);
+    if (!proj) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+    db.selected_project_id = id;
+    db.project_detail = proj;
+    writeDb(db);
+    res.json({ success: true, selected_project_id: db.selected_project_id, project_detail: db.project_detail });
+  });
+
+  app.post("/api/config/delete-project", (req, res) => {
+    const { id } = req.body;
+    const db = readDb();
+    if (!db.projects) db.projects = [];
+    if (db.projects.length <= 1) {
+      return res.status(400).json({ success: false, message: "Cannot delete the only remaining active project." });
+    }
+    db.projects = db.projects.filter(p => p.id !== id);
+    if (db.selected_project_id === id) {
+      db.selected_project_id = db.projects[0].id;
+      db.project_detail = db.projects[0];
+    }
+    writeDb(db);
+    res.json({ success: true, projects: db.projects, selected_project_id: db.selected_project_id, project_detail: db.project_detail });
   });
 
   app.post("/api/config/add-user", (req, res) => {
@@ -441,6 +708,28 @@ async function startServer() {
     db.users = db.users.filter(u => u.username.toLowerCase() !== username.toLowerCase());
     writeDb(db);
     res.json({ success: true });
+  });
+
+  app.post("/api/notifications/custom", (req, res) => {
+    const { message, sender, role, type, project_id } = req.body;
+    if (!message) {
+      return res.status(400).json({ success: false, message: "Notification message is required" });
+    }
+    const db = readDb();
+    const validatedRole: UserRole = (role && ["recruiter", "engineer", "ops", "admin", "viewer"].includes(role)) 
+      ? (role as UserRole) 
+      : "viewer";
+
+    const newNotif = addSystemNotification(
+      db,
+      message.trim(),
+      sender || "Anonymous Staff",
+      validatedRole,
+      type || "info",
+      project_id || undefined
+    );
+    writeDb(db, newNotif);
+    res.json({ success: true, notification: newNotif, notifications: db.notifications });
   });
 
   // Serve Vite app in dev mode, or static bundle in production

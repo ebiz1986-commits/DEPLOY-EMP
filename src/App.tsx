@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { UserRole, Worker, Category, Company, DropdownOption, User, ProjectDetail } from "./types";
+import { UserRole, Worker, Category, Company, DropdownOption, User, ProjectDetail, SystemNotification } from "./types";
 import Sidebar from "./components/Sidebar";
 import LoginView from "./components/LoginView";
 import DashboardView from "./components/DashboardView";
@@ -8,11 +8,12 @@ import RecruiterIntakeView from "./components/RecruiterIntakeView";
 import EngineerApprovalsView from "./components/EngineerApprovalsView";
 import OperationsView from "./components/OperationsView";
 import AdminPanel from "./components/AdminPanel";
-import { ShieldCheck, LogIn, Sparkles, Building2, Radio, RefreshCw } from "lucide-react";
+import NotificationsPanel from "./components/NotificationsPanel";
+import { ShieldCheck, LogIn, Sparkles, Building2, Radio, RefreshCw, Volume2, X, Bell } from "lucide-react";
 
 export default function App() {
   // Authentication State
-  const [user, setUser] = useState<{ username: string; role: UserRole; name: string } | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   // Synchronised Database State
@@ -22,7 +23,30 @@ export default function App() {
   const [dropdownOptions, setDropdownOptions] = useState<DropdownOption[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [projectDetail, setProjectDetail] = useState<ProjectDetail | null>(null);
+  const [projects, setProjects] = useState<ProjectDetail[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [dbLoading, setDbLoading] = useState(true);
+  const [notifications, setNotifications] = useState<SystemNotification[]>([]);
+  const [activeBroadcastToasts, setActiveBroadcastToasts] = useState<SystemNotification[]>([]);
+
+  // Compute allowed projects based on user profile focus permissions
+  const visibleProjects = React.useMemo(() => {
+    if (!user) return [];
+    if (user.role === "admin" || !user.assigned_projects || user.assigned_projects.length === 0) {
+      return projects;
+    }
+    return projects.filter(p => user.assigned_projects?.includes(p.id));
+  }, [projects, user]);
+
+  // Adjust active project focus when permission restrictions apply
+  useEffect(() => {
+    if (user && dbLoading === false && visibleProjects.length > 0) {
+      const isCurrentValid = visibleProjects.some(p => p.id === selectedProjectId);
+      if (!isCurrentValid) {
+        handleSelectProject(visibleProjects[0].id);
+      }
+    }
+  }, [user, visibleProjects, selectedProjectId, dbLoading]);
 
   // SSE Realtime Connectivity status representation
   const [sseStatus, setSseStatus] = useState<"connected" | "connecting" | "disconnected">("disconnected");
@@ -69,6 +93,28 @@ export default function App() {
         setDropdownOptions(data.dropdown_options || []);
         setUsers(data.users || []);
         setProjectDetail(data.project_detail || null);
+        setProjects(data.projects || []);
+        setSelectedProjectId(data.selected_project_id || "");
+        setNotifications(data.notifications || []);
+
+        // Keep active session user in perfect sync with updated database definition
+        const cached = localStorage.getItem("ksj_session");
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            const updatedUser = data.users?.find((u: any) => u.username.toLowerCase() === parsed.username.toLowerCase());
+            if (updatedUser) {
+              setUser(prev => prev ? { 
+                ...prev, 
+                assigned_projects: updatedUser.assigned_projects, 
+                name: updatedUser.name 
+              } : null);
+              parsed.assigned_projects = updatedUser.assigned_projects;
+              parsed.name = updatedUser.name;
+              localStorage.setItem("ksj_session", JSON.stringify(parsed));
+            }
+          } catch (err) {}
+        }
       }
     } catch (e) {
       console.error("Critical: Could not retrieve master database details.", e);
@@ -94,6 +140,77 @@ export default function App() {
     }
   };
 
+  const handleSelectProject = async (projectId: string) => {
+    try {
+      const res = await fetch("/api/config/select-project", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: projectId })
+      });
+      if (res.ok) {
+        await fetchDbState();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const handleAddProject = async (newProj: Omit<ProjectDetail, "id"> & { id?: string }) => {
+    try {
+      const res = await fetch("/api/config/add-project", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newProj)
+      });
+      if (res.ok) {
+        await fetchDbState();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    try {
+      const res = await fetch("/api/config/delete-project", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: projectId })
+      });
+      if (res.ok) {
+        await fetchDbState();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const triggerBroadcastToast = (notif: SystemNotification) => {
+    // Skip toast if user is restricted of this project context
+    if (user && user.role !== "admin" && notif.project_id && user.assigned_projects && user.assigned_projects.length > 0) {
+      if (!user.assigned_projects.includes(notif.project_id)) {
+        return;
+      }
+    }
+
+    // Add toast
+    setActiveBroadcastToasts((prev) => {
+      if (prev.some((t) => t.id === notif.id)) return prev;
+      return [notif, ...prev];
+    });
+
+    // Auto clear after 8.5 seconds
+    setTimeout(() => {
+      setActiveBroadcastToasts((prev) => prev.filter((t) => t.id !== notif.id));
+    }, 8500);
+  };
+
   useEffect(() => {
     fetchDbState();
   }, []);
@@ -111,8 +228,16 @@ export default function App() {
       };
 
       eventSource.onmessage = (event) => {
-        if (event.data === "reload") {
+        try {
+          const parsed = JSON.parse(event.data);
+          if (parsed.type === "notification") {
+            triggerBroadcastToast(parsed.notification);
+          }
           fetchDbState();
+        } catch (err) {
+          if (event.data === "reload") {
+            fetchDbState();
+          }
         }
       };
 
@@ -131,19 +256,18 @@ export default function App() {
     return () => {
       eventSource?.close();
     };
-  }, []);
+  }, [user]);
 
-  const handleLoginSuccess = (username: string, role: UserRole, name: string) => {
-    const payload = { username, role, name };
-    setUser(payload);
-    localStorage.setItem("ksj_session", JSON.stringify(payload));
+  const handleLoginSuccess = (loggedInUser: User) => {
+    setUser(loggedInUser);
+    localStorage.setItem("ksj_session", JSON.stringify(loggedInUser));
     
     // Auto shift onto assigned working panel
-    if (role === "recruiter") {
+    if (loggedInUser.role === "recruiter") {
       setActiveTab("intake");
-    } else if (role === "engineer") {
+    } else if (loggedInUser.role === "engineer") {
       setActiveTab("engineer");
-    } else if (role === "ops") {
+    } else if (loggedInUser.role === "ops") {
       setActiveTab("operations");
     } else {
       setActiveTab("dashboard");
@@ -197,7 +321,11 @@ export default function App() {
     try {
       const res = await fetch(`/api/workers/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-caller-role": user?.role || "",
+          "x-caller-username": user?.username || ""
+        },
         body: JSON.stringify(updates)
       });
       if (res.ok) {
@@ -332,7 +460,10 @@ export default function App() {
             categories={categories}
             companies={companies}
             projectDetail={projectDetail}
+            projects={visibleProjects}
+            selectedProjectId={selectedProjectId}
             onRefresh={fetchDbState}
+            onSelectProject={handleSelectProject}
           />
         );
       case "intake":
@@ -341,9 +472,11 @@ export default function App() {
             workers={workers}
             categories={categories}
             companies={companies}
+            projectDetail={projectDetail}
             onRefresh={fetchDbState}
             onBulkAdd={handleBulkAdd}
             onUpdateWorker={handleUpdateWorker}
+            currentUser={user}
           />
         );
       case "engineer":
@@ -353,6 +486,9 @@ export default function App() {
             categories={categories}
             companies={companies}
             dropdownOptions={dropdownOptions}
+            projects={visibleProjects}
+            selectedProjectId={selectedProjectId}
+            projectDetail={projectDetail}
             onRefresh={fetchDbState}
             onApproveWorker={handleApproveWorker}
           />
@@ -364,8 +500,12 @@ export default function App() {
             categories={categories}
             companies={companies}
             dropdownOptions={dropdownOptions}
+            projects={visibleProjects}
+            selectedProjectId={selectedProjectId}
+            projectDetail={projectDetail}
             onRefresh={fetchDbState}
             onUpdateWorker={handleUpdateWorker}
+            currentUser={user}
           />
         );
       case "admin":
@@ -376,6 +516,8 @@ export default function App() {
             dropdownOptions={dropdownOptions}
             users={users}
             projectDetail={projectDetail}
+            projects={projects}
+            selectedProjectId={selectedProjectId}
             onRefresh={fetchDbState}
             onUpdateCategories={handleUpdateCategories}
             onUpdateCompanies={handleUpdateCompanies}
@@ -383,6 +525,9 @@ export default function App() {
             onAddUser={handleAddUser}
             onDeleteUser={handleDeleteUser}
             onUpdateProjectDetail={handleUpdateProjectDetail}
+            onAddProject={handleAddProject}
+            onDeleteProject={handleDeleteProject}
+            onSelectProject={handleSelectProject}
           />
         );
       default:
@@ -396,6 +541,61 @@ export default function App() {
 
   return (
     <div id="application-container" className="flex bg-paper text-ink min-h-screen overflow-hidden selection:bg-accent selection:text-[#FDFBF6]">
+      {/* Realtime Live Broadcast Toast Stack overlay */}
+      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
+        <AnimatePresence>
+          {activeBroadcastToasts.map((notif) => {
+            let borderColor = "border-slate-400";
+            let iconColor = "text-accent";
+            
+            if (notif.type === "success") {
+              borderColor = "border-success-green";
+              iconColor = "text-success-green";
+            } else if (notif.type === "warning") {
+              borderColor = "border-gold";
+              iconColor = "text-gold";
+            } else if (notif.type === "error") {
+              borderColor = "border-bad";
+              iconColor = "text-bad";
+            }
+
+            return (
+              <motion.div
+                key={notif.id}
+                initial={{ opacity: 0, x: 50, scale: 0.95 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, x: 50, scale: 0.95 }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
+                className={`pointer-events-auto bg-card border-l-4 ${borderColor} border border-line shadow-2xl rounded-xl p-4 flex gap-3 text-xs font-sans ring-1 ring-black/5`}
+              >
+                <div className={`shrink-0 ${iconColor} mt-0.5`}>
+                  <Bell className="w-4 h-4 animate-bounce" />
+                </div>
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-[10px] uppercase tracking-wider text-accent font-mono">
+                      Broadcast Alert
+                    </span>
+                    <button
+                      onClick={() => setActiveBroadcastToasts((prev) => prev.filter((t) => t.id !== notif.id))}
+                      className="text-muted hover:text-ink cursor-pointer transition-colors p-0.5"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <p className="text-ink font-medium leading-normal pr-2">
+                    {notif.message}
+                  </p>
+                  <p className="text-[9px] text-muted font-mono leading-none pt-0.5">
+                    Sender: <span className="font-semibold text-accent">{notif.sender}</span>
+                  </p>
+                </div>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+      </div>
+
       {/* Sidebar navigation */}
       <Sidebar
         currentRole={user.role}
@@ -404,10 +604,32 @@ export default function App() {
         setActiveTab={setActiveTab}
         onLogout={handleLogout}
         sseStatus={sseStatus}
+        projects={visibleProjects}
+        selectedProjectId={selectedProjectId}
+        onSelectProject={handleSelectProject}
       />
 
       {/* Main panel viewport with fluid animations */}
       <div className="flex-1 flex flex-col min-w-0 bg-paper">
+        {/* Persistent topbar containing notifications centre */}
+        <header className="h-14 border-b border-line bg-card flex items-center justify-between px-6 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono tracking-wider font-bold text-muted bg-paper/55 border border-line px-2 py-1 rounded uppercase">
+              Operational Focus Active
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <NotificationsPanel
+              notifications={notifications}
+              projects={visibleProjects}
+              currentUser={user}
+              selectedProjectId={selectedProjectId}
+              onRefresh={fetchDbState}
+            />
+          </div>
+        </header>
+
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}

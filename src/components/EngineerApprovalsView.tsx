@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Category, Worker, Company, DropdownOption } from "../types";
+import { Category, Worker, Company, DropdownOption, ProjectDetail } from "../types";
 import { 
   ShieldCheck, 
   AlertOctagon, 
@@ -18,6 +18,9 @@ interface EngineerApprovalsViewProps {
   categories: Category[];
   companies: Company[];
   dropdownOptions: DropdownOption[];
+  projects?: ProjectDetail[];
+  selectedProjectId?: string;
+  projectDetail?: ProjectDetail | null;
   onRefresh: () => void;
   onApproveWorker: (id: string, sendingBatch: string) => Promise<{ success: boolean; message?: string }>;
 }
@@ -27,6 +30,9 @@ export default function EngineerApprovalsView({
   categories,
   companies,
   dropdownOptions,
+  projects = [],
+  selectedProjectId = "",
+  projectDetail,
   onRefresh,
   onApproveWorker
 }: EngineerApprovalsViewProps) {
@@ -39,6 +45,11 @@ export default function EngineerApprovalsView({
   // Maintain local state of selected batch per worker rows
   const [workerBatchSelection, setWorkerBatchSelection] = useState<{ [workerId: string]: string }>({});
 
+  // Scope worker actions strictly within the currently selected active project focus
+  const scopedWorkers = useMemo(() => {
+    return workers.filter((w) => w.project_id === selectedProjectId);
+  }, [workers, selectedProjectId]);
+
   // Dropdown list for batches
   const sendingBatches = useMemo(() => {
     return dropdownOptions
@@ -49,7 +60,7 @@ export default function EngineerApprovalsView({
   // Calculate live vacancies remaining per category
   const categoryStates = useMemo(() => {
     return categories.map((cat) => {
-      const activeCount = workers.filter((w) => w.category === cat.name && w.state === "active").length;
+      const activeCount = scopedWorkers.filter((w) => w.category === cat.name && w.state === "active").length;
       const remaining = Math.max(0, cat.max_quota - activeCount);
       const percent = cat.max_quota > 0 ? (activeCount / cat.max_quota) * 100 : 0;
       return {
@@ -59,7 +70,7 @@ export default function EngineerApprovalsView({
         percent
       };
     });
-  }, [categories, workers]);
+  }, [categories, scopedWorkers]);
 
   // Map category name to its current vacancy remaining
   const categoryVacanyMap = useMemo(() => {
@@ -72,7 +83,7 @@ export default function EngineerApprovalsView({
 
   // Pending worker list (state = 'pending' only!)
   const pendingWorkers = useMemo(() => {
-    return workers.filter((w) => {
+    return scopedWorkers.filter((w) => {
       // Must be pending state
       if (w.state !== "pending") return false;
 
@@ -91,7 +102,7 @@ export default function EngineerApprovalsView({
 
       return true;
     });
-  }, [workers, selectedCompany, searchQuery]);
+  }, [scopedWorkers, selectedCompany, searchQuery]);
 
   const handleApprove = async (workerId: string, categoryName: string) => {
     setMessage(null);
@@ -148,6 +159,26 @@ export default function EngineerApprovalsView({
           Resync Gate data
         </button>
       </div>
+
+      {/* Project Target Info Banner */}
+      {projectDetail ? (
+        <div className="bg-amber-50/40 border border-line rounded-lg p-3 text-xs flex items-center justify-between font-sans">
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-accent shrink-0" />
+            <div>
+              <span className="font-semibold text-ink">Active Project Context: </span>
+              <span className="text-accent font-bold">{projectDetail.name}</span>
+            </div>
+          </div>
+          <div className="text-[10px] font-mono text-muted">
+            Site Engineer: <span className="font-semibold text-ink">{projectDetail.engineer_in_charge}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-red-50 text-bad border border-bad/20 p-3 rounded-lg text-xs font-sans">
+          Warning: No active project focused. Please select a project context in the sidebar or dashboard.
+        </div>
+      )}
 
       {/* Messages */}
       {message && (

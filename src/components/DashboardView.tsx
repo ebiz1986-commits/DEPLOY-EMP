@@ -33,7 +33,10 @@ interface DashboardViewProps {
   categories: Category[];
   companies: Company[];
   projectDetail?: ProjectDetail | null;
+  projects?: ProjectDetail[];
+  selectedProjectId?: string;
   onRefresh: () => void;
+  onSelectProject?: (id: string) => void;
 }
 
 type SortField = "name" | "passport" | "category" | "supply_company" | "state" | "status" | "bureau" | "final_status" | "created_at";
@@ -44,9 +47,21 @@ export default function DashboardView({
   categories,
   companies,
   projectDetail,
-  onRefresh
+  projects = [],
+  selectedProjectId = "",
+  onRefresh,
+  onSelectProject = () => {}
 }: DashboardViewProps) {
   
+  // Scope filter: lock telemetry statistics and pipeline details on a selected project or view aggregation
+  const [projectScope, setProjectScope] = useState<"all" | "selected">("selected");
+
+  // Scoped workers list
+  const scopedWorkers = useMemo(() => {
+    if (projectScope === "all") return workers;
+    return workers.filter((w) => w.project_id === selectedProjectId);
+  }, [workers, projectScope, selectedProjectId]);
+
   // States for filtering
   const [selectedCompany, setSelectedCompany] = useState("All");
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -58,7 +73,7 @@ export default function DashboardView({
 
   // Filter list of workers based on parameters
   const filteredWorkers = useMemo(() => {
-    return workers.filter((w) => {
+    return scopedWorkers.filter((w) => {
       // Company filter
       if (selectedCompany !== "All" && w.supply_company !== selectedCompany) {
         return false;
@@ -76,7 +91,7 @@ export default function DashboardView({
       }
       return true;
     });
-  }, [workers, selectedCompany, selectedCategory, searchQuery]);
+  }, [scopedWorkers, selectedCompany, selectedCategory, searchQuery]);
 
   // Sort workers
   const sortedWorkers = useMemo(() => {
@@ -117,7 +132,7 @@ export default function DashboardView({
 
   // Metric calculators
   const stats = useMemo(() => {
-    const subset = workers.filter((w) => selectedCompany === "All" || w.supply_company === selectedCompany);
+    const subset = scopedWorkers.filter((w) => selectedCompany === "All" || w.supply_company === selectedCompany);
     
     const countTotal = subset.length;
     const countPending = subset.filter((w) => w.state === "pending").length;
@@ -138,13 +153,13 @@ export default function DashboardView({
       countBooked,
       countArrived
     };
-  }, [workers, selectedCompany]);
+  }, [scopedWorkers, selectedCompany]);
 
   // Categories quota utilization
   const categoryQuotas = useMemo(() => {
     return categories.map((cat) => {
-      // Find active workers in this category globally (as quotas apply globally)
-      const activeCount = workers.filter((w) => w.category === cat.name && w.state === "active").length;
+      // Find active workers in this category globally (for this project context or overall)
+      const activeCount = scopedWorkers.filter((w) => w.category === cat.name && w.state === "active").length;
       const remaining = Math.max(0, cat.max_quota - activeCount);
       const percent = cat.max_quota > 0 ? (activeCount / cat.max_quota) * 100 : 0;
       return {
@@ -154,13 +169,13 @@ export default function DashboardView({
         percent
       };
     });
-  }, [categories, workers]);
+  }, [categories, scopedWorkers]);
 
   // Compute comparative partner distribution data across all supply companies
   const companyDistributionData = useMemo(() => {
     return companies.map((co) => {
       // Filter matching current category and search criteria (to keep it interactive and highly responsive)
-      const matches = workers.filter((w) => {
+      const matches = scopedWorkers.filter((w) => {
         if (w.supply_company !== co.name) return false;
         if (selectedCategory !== "All" && w.category !== selectedCategory) return false;
         if (searchQuery.trim() !== "") {
@@ -182,7 +197,7 @@ export default function DashboardView({
         Total: active + pending
       };
     });
-  }, [companies, workers, selectedCategory, searchQuery]);
+  }, [companies, scopedWorkers, selectedCategory, searchQuery]);
 
   // Export to Excel / CSV via SheetJS
   const handleExportExcel = () => {
@@ -232,52 +247,117 @@ export default function DashboardView({
         onRefresh={onRefresh}
       />
 
+      {/* Project Scope & Multi-Project Toggler */}
+      <div className="bg-card border border-line rounded-xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 font-sans">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 bg-accent/10 text-accent rounded-lg flex items-center justify-center">
+            <Briefcase className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-ink uppercase tracking-wider font-mono">Telemetry Data Scope</h4>
+            <p className="text-[11px] text-muted">Toggle between viewing a combined aggregate or drilling down to a specific project focus.</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Scope selection pill */}
+          <div className="inline-flex rounded-lg p-0.5 bg-paper border border-line">
+            <button
+              onClick={() => setProjectScope("all")}
+              className={`px-3 py-1 text-xs font-mono font-medium rounded-md transition-all cursor-pointer ${
+                projectScope === "all"
+                  ? "bg-accent text-white shadow"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              Aggregate (All)
+            </button>
+            <button
+              onClick={() => setProjectScope("selected")}
+              className={`px-3 py-1 text-xs font-mono font-medium rounded-md transition-all cursor-pointer ${
+                projectScope === "selected"
+                  ? "bg-accent text-white shadow"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              Project Focus
+            </button>
+          </div>
+
+          {/* Quick Dropdown selector in dashboard */}
+          {projectScope === "selected" && projects.length > 0 && (
+            <select
+              value={selectedProjectId}
+              onChange={(e) => onSelectProject(e.target.value)}
+              className="px-3 py-1 text-xs font-semibold bg-paper border border-line rounded-lg text-ink focus:border-accent outline-none cursor-pointer"
+            >
+              {projects.map((p) => (
+                <option key={p.id} value={p.id} className="text-stone-800 bg-stone-100">
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      </div>
+
       {/* Unified Project Context Banner */}
       {projectDetail && (
-        <div className="bg-amber-50/50 border border-line rounded-xl p-5 shadow-sm space-y-4 font-sans">
+        <div className={`border rounded-xl p-5 shadow-sm space-y-4 font-sans transition-all duration-350 ${
+          projectScope === "all" ? "bg-accent/[0.02] border-line/80" : "bg-amber-50/50 border-line"
+        }`}>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-accent/10 text-accent text-[10px] font-mono uppercase tracking-wider font-semibold">
-                Single Project Wrap
+              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono uppercase tracking-wider font-semibold ${
+                projectScope === "all" ? "bg-accent/15 text-accent" : "bg-gold/15 text-gold-900"
+              }`}>
+                {projectScope === "all" ? "Aggregate System Scope" : "Active Focus Project"}
               </span>
               <h1 className="text-lg font-display font-semibold tracking-tight text-ink mt-1.5 flex items-center gap-2">
                 <Briefcase className="w-4 h-4 text-accent shrink-0" />
-                <span>{projectDetail.name}</span>
+                <span>{projectScope === "all" ? "Combined Sanken Portfolio Telemetry" : projectDetail.name}</span>
               </h1>
               <p className="text-xs text-muted mt-0.5">
-                Multi-agency intake coordinates directly to this single project's capacity limits. Engineer and Admin rosters remain constant.
+                {projectScope === "all" 
+                  ? "Sankenseas master dashboard monitoring real-time pipelines, waiting list batches, and partner supply quotas across all construction sites combined."
+                  : "Multi-agency intake coordinates directly to this specific project's capacity limits. Engineer and Admin rosters remain constant."
+                }
               </p>
             </div>
-            <div className="flex flex-wrap gap-2 text-[10px] font-mono text-muted">
-              <span className="px-2 py-0.5 bg-paper border border-line rounded">
-                Ref Code: <span className="text-ink font-semibold">{projectDetail.contract_number}</span>
-              </span>
-              <span className="px-2 py-0.5 bg-paper border border-line rounded">
-                Client: <span className="text-ink font-semibold">{projectDetail.client}</span>
-              </span>
-            </div>
+            {projectScope !== "all" && (
+              <div className="flex flex-wrap gap-2 text-[10px] font-mono text-muted">
+                <span className="px-2 py-0.5 bg-paper border border-line rounded">
+                  Ref Code: <span className="text-ink font-semibold">{projectDetail.contract_number}</span>
+                </span>
+                <span className="px-2 py-0.5 bg-paper border border-line rounded">
+                  Client: <span className="text-ink font-semibold">{projectDetail.client}</span>
+                </span>
+              </div>
+            )}
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3.5 border-t border-line/50">
-            <div className="space-y-0.5">
-              <span className="text-[9px] font-mono text-muted uppercase tracking-wider block">Project Location</span>
-              <p className="text-xs font-semibold text-ink">{projectDetail.location}</p>
+          {projectScope !== "all" && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3.5 border-t border-line/50">
+              <div className="space-y-0.5">
+                <span className="text-[9px] font-mono text-muted uppercase tracking-wider block">Project Location</span>
+                <p className="text-xs font-semibold text-ink">{projectDetail.location}</p>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[9px] font-mono text-muted uppercase tracking-wider block">Site Engineer In Charge</span>
+                <p className="text-xs font-semibold text-accent">{projectDetail.engineer_in_charge}</p>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[9px] font-mono text-muted uppercase tracking-wider block">Lead Admin Coordinator</span>
+                <p className="text-xs font-semibold text-ink">{projectDetail.admin_coordinator}</p>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[9px] font-mono text-muted uppercase tracking-wider block">Authorized Feed Companies</span>
+                <p className="text-xs font-semibold text-ink truncate" title={companies.map(c => c.name).join(", ")}>
+                  {companies.length} recruiting agencies active
+                </p>
+              </div>
             </div>
-            <div className="space-y-0.5">
-              <span className="text-[9px] font-mono text-muted uppercase tracking-wider block">Site Engineer In Charge</span>
-              <p className="text-xs font-semibold text-accent">{projectDetail.engineer_in_charge}</p>
-            </div>
-            <div className="space-y-0.5">
-              <span className="text-[9px] font-mono text-muted uppercase tracking-wider block">Lead Admin Coordinator</span>
-              <p className="text-xs font-semibold text-ink">{projectDetail.admin_coordinator}</p>
-            </div>
-            <div className="space-y-0.5">
-              <span className="text-[9px] font-mono text-muted uppercase tracking-wider block">Authorized Feed Companies</span>
-              <p className="text-xs font-semibold text-ink truncate" title={companies.map(c => c.name).join(", ")}>
-                {companies.length} recruiting agencies active
-              </p>
-            </div>
-          </div>
+          )}
         </div>
       )}
 

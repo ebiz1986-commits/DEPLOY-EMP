@@ -21,6 +21,8 @@ interface AdminPanelProps {
   dropdownOptions: DropdownOption[];
   users: User[];
   projectDetail?: ProjectDetail | null;
+  projects?: ProjectDetail[];
+  selectedProjectId?: string;
   onRefresh: () => void;
   onUpdateCategories: (newCats: Category[]) => Promise<boolean>;
   onUpdateCompanies: (newCos: Company[]) => Promise<boolean>;
@@ -28,6 +30,9 @@ interface AdminPanelProps {
   onAddUser: (newUser: User) => Promise<{ success: boolean; message?: string }>;
   onDeleteUser: (username: string) => Promise<boolean>;
   onUpdateProjectDetail?: (newDetail: ProjectDetail) => Promise<boolean>;
+  onAddProject?: (newProj: Omit<ProjectDetail, "id"> & { id?: string }) => Promise<boolean>;
+  onDeleteProject?: (projectId: string) => Promise<boolean>;
+  onSelectProject?: (projectId: string) => Promise<boolean>;
 }
 
 export default function AdminPanel({
@@ -36,13 +41,18 @@ export default function AdminPanel({
   dropdownOptions,
   users,
   projectDetail,
+  projects = [],
+  selectedProjectId = "",
   onRefresh,
   onUpdateCategories,
   onUpdateCompanies,
   onUpdateDropdownOptions,
   onAddUser,
   onDeleteUser,
-  onUpdateProjectDetail
+  onUpdateProjectDetail,
+  onAddProject = async () => false,
+  onDeleteProject = async () => false,
+  onSelectProject = async () => false
 }: AdminPanelProps) {
   
   // Navigation internal to Admin Settings panel
@@ -58,16 +68,67 @@ export default function AdminPanel({
   const [projAdmin, setProjAdmin] = useState(projectDetail?.admin_coordinator || "");
   const [projContract, setProjContract] = useState(projectDetail?.contract_number || "");
 
+  // Multi-project editing and creation states
+  const [selectedEditProjectId, setSelectedEditProjectId] = useState<string>(projectDetail?.id || "proj-1");
+  const [isAddingNewProject, setIsAddingNewProject] = useState(false);
+  const [newProjName, setNewProjName] = useState("");
+  const [newProjClient, setNewProjClient] = useState("");
+  const [newProjLocation, setNewProjLocation] = useState("");
+  const [newProjEngineer, setNewProjEngineer] = useState("");
+  const [newProjAdmin, setNewProjAdmin] = useState("");
+  const [newProjContract, setNewProjContract] = useState("");
+
   React.useEffect(() => {
     if (projectDetail) {
+      // Default populate with current active project
       setProjName(projectDetail.name);
       setProjClient(projectDetail.client);
       setProjLocation(projectDetail.location);
       setProjEngineer(projectDetail.engineer_in_charge);
       setProjAdmin(projectDetail.admin_coordinator);
       setProjContract(projectDetail.contract_number);
+      setSelectedEditProjectId(projectDetail.id || "proj-1");
     }
   }, [projectDetail]);
+
+  const handleLoadProjectForEdit = (proj: ProjectDetail) => {
+    setSelectedEditProjectId(proj.id);
+    setProjName(proj.name);
+    setProjClient(proj.client);
+    setProjLocation(proj.location);
+    setProjEngineer(proj.engineer_in_charge);
+    setProjAdmin(proj.admin_coordinator);
+    setProjContract(proj.contract_number);
+    setIsAddingNewProject(false);
+  };
+
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProjName.trim()) {
+      showError("Project name key is required.");
+      return;
+    }
+    const ok = await onAddProject({
+      name: newProjName.trim(),
+      client: newProjClient.trim(),
+      location: newProjLocation.trim(),
+      engineer_in_charge: newProjEngineer.trim(),
+      admin_coordinator: newProjAdmin.trim(),
+      contract_number: newProjContract.trim()
+    });
+    if (ok) {
+      showSuccess(`Successfully registered active project: "${newProjName.trim()}"!`);
+      setIsAddingNewProject(false);
+      setNewProjName("");
+      setNewProjClient("");
+      setNewProjLocation("");
+      setNewProjEngineer("");
+      setNewProjAdmin("");
+      setNewProjContract("");
+    } else {
+      showError("Failed to add project to database.");
+    }
+  };
 
   const handleUpdateProject = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,6 +138,7 @@ export default function AdminPanel({
     }
     if (onUpdateProjectDetail) {
       const ok = await onUpdateProjectDetail({
+        id: selectedEditProjectId,
         name: projName.trim(),
         client: projClient.trim(),
         location: projLocation.trim(),
@@ -108,6 +170,14 @@ export default function AdminPanel({
   const [newPassword, setNewPassword] = useState("");
   const [newRealName, setNewRealName] = useState("");
   const [newUserRole, setNewUserRole] = useState<UserRole>("recruiter");
+  const [newUserAssignedProjects, setNewUserAssignedProjects] = useState<string[]>([]);
+  const [newUserRecruiterCompany, setNewUserRecruiterCompany] = useState<string>("");
+
+  React.useEffect(() => {
+    if (!newUserRecruiterCompany && companies.length > 0) {
+      setNewUserRecruiterCompany(companies[0].name);
+    }
+  }, [companies, newUserRecruiterCompany]);
 
   const showSuccess = (text: string) => {
     setSuccessMsg(text);
@@ -258,7 +328,9 @@ export default function AdminPanel({
       username: newUsername.trim().toLowerCase(),
       password: newPassword.trim(),
       name: newRealName.trim(),
-      role: newUserRole
+      role: newUserRole,
+      assigned_projects: newUserAssignedProjects,
+      recruiter_company: newUserRole === "recruiter" ? newUserRecruiterCompany : undefined
     };
 
     const res = await onAddUser(userPayload);
@@ -267,6 +339,7 @@ export default function AdminPanel({
       setNewUsername("");
       setNewPassword("");
       setNewRealName("");
+      setNewUserAssignedProjects([]);
     } else {
       showError(res.message || "Failed to create user account.");
     }
@@ -396,100 +469,301 @@ export default function AdminPanel({
 
         {/* SUB 0: PROJECT WRAPPER SETTINGS */}
         {activeSubTab === "project" && (
-          <div className="bg-card border border-line rounded-xl p-5 shadow-sm space-y-5 animate-fade-in max-w-2xl font-sans">
-            <div>
-              <h3 className="text-sm font-semibold text-ink font-display flex items-center gap-2">
-                <Briefcase className="w-4 h-4 text-accent shrink-0" />
-                <span>Single Project Wrapper Setup</span>
-              </h3>
-              <p className="text-xs text-muted">
-                All registered migrant workers and company allocations in this app wrapper belong to this single project context.
-              </p>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in font-sans">
+            {/* List of projects */}
+            <div className="lg:col-span-7 bg-card border border-line rounded-xl p-5 shadow-sm space-y-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-sm font-semibold text-ink font-display flex items-center gap-2">
+                    <Briefcase className="w-4 h-4 text-accent shrink-0" />
+                    <span>Active Projects Directory ({projects.length})</span>
+                  </h3>
+                  <p className="text-xs text-muted">
+                    Switch focuses or audit system parameters.
+                  </p>
+                </div>
+                {!isAddingNewProject && (
+                  <button
+                    onClick={() => {
+                      setIsAddingNewProject(true);
+                    }}
+                    className="px-3 py-1.5 bg-accent/15 text-accent hover:bg-accent/25 rounded text-xs font-mono uppercase tracking-wider transition-colors inline-flex items-center gap-1.5 cursor-pointer font-bold"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    New Project
+                  </button>
+                )}
+              </div>
+
+              <div className="border border-line/60 rounded-lg overflow-hidden">
+                <table className="w-full text-left text-xs bg-card">
+                  <thead className="bg-paper text-muted font-mono text-[9px] uppercase">
+                    <tr>
+                      <th className="p-2.5 w-12 text-center">Active</th>
+                      <th className="p-2.5">Project Details</th>
+                      <th className="p-2.5">Client & site</th>
+                      <th className="p-2.5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line/40">
+                    {projects.map((proj) => {
+                      const isActive = selectedProjectId === proj.id;
+                      const isBeingEdited = selectedEditProjectId === proj.id && !isAddingNewProject;
+                      return (
+                        <tr
+                          key={proj.id}
+                          className={`hover:bg-paper/30 transition-colors ${
+                            isActive ? "bg-accent/5" : ""
+                          } ${isBeingEdited ? "ring-1 ring-inset ring-accent/60 bg-accent/2" : ""}`}
+                        >
+                          <td className="p-2.5 text-center">
+                            <button
+                              onClick={() => {
+                                onSelectProject(proj.id);
+                                showSuccess(`Focused active portal on "${proj.name}"`);
+                              }}
+                              className={`p-1.5 rounded transition-colors ${
+                                isActive ? "text-accent" : "text-muted hover:text-ink hover:bg-paper/40"
+                              }`}
+                              title={isActive ? "Currently Selected Active Focus" : "Click to select as active focus"}
+                            >
+                              <CheckCircle className={`w-4 h-4 ${isActive ? "fill-accent/20" : ""}`} />
+                            </button>
+                          </td>
+                          <td className="p-2.5">
+                            <div className="font-semibold text-ink">{proj.name}</div>
+                            <div className="text-[10px] text-muted font-mono">{proj.contract_number}</div>
+                          </td>
+                          <td className="p-2.5 text-muted leading-tight">
+                            <div>{proj.client}</div>
+                            <div className="text-[10px] italic">{proj.location}</div>
+                          </td>
+                          <td className="p-2.5 text-right space-x-1 whitespace-nowrap">
+                            <button
+                              onClick={() => handleLoadProjectForEdit(proj)}
+                              className="px-2 py-1 bg-paper/60 hover:bg-paper border border-line rounded text-[10px] text-ink font-mono font-medium"
+                            >
+                              Edit/Load
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (projects.length <= 1) {
+                                  showError("Cannot delete the only project block.");
+                                  return;
+                                }
+                                if (window.confirm(`Are you sure you want to delete "${proj.name}"? Sanken workers assigned to this project will remain in the database but lose project affiliation.`)) {
+                                  const ok = await onDeleteProject(proj.id);
+                                  if (ok) {
+                                    showSuccess(`Project "${proj.name}" removed successfully.`);
+                                  } else {
+                                    showError("Failed to remove project from database.");
+                                  }
+                                }
+                              }}
+                              disabled={projects.length <= 1}
+                              className="px-2 py-1 bg-red-50 hover:bg-red-100 text-bad border border-bad/30 rounded text-[10px] font-mono font-medium disabled:opacity-30 disabled:cursor-not-allowed"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
-            <form onSubmit={handleUpdateProject} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-[10px] font-mono text-muted uppercase tracking-wider block">Project Name (Title)</label>
-                  <input
-                    type="text"
-                    value={projName}
-                    onChange={(e) => setProjName(e.target.value)}
-                    placeholder="e.g. Sanken Overseas Infrastructure Link MRT Project"
-                    className="w-full bg-paper/20 border border-line rounded px-3 py-2 text-xs outline-none focus:border-accent text-ink"
-                    required
-                  />
-                </div>
+            {/* Editing / Creation panel */}
+            <div className="lg:col-span-5 bg-card border border-line rounded-xl p-5 shadow-sm space-y-4">
+              {isAddingNewProject ? (
+                <>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-sm font-semibold text-ink font-display flex items-center gap-2">
+                        <Plus className="w-4 h-4 text-accent shrink-0" />
+                        <span>Register New Project</span>
+                      </h3>
+                      <p className="text-xs text-muted">Submit a new site project draft</p>
+                    </div>
+                    <button
+                      onClick={() => setIsAddingNewProject(false)}
+                      className="text-xs text-muted hover:text-ink font-mono underline"
+                    >
+                      Back to Edit
+                    </button>
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-muted uppercase tracking-wider block">Client Organization</label>
-                  <input
-                    type="text"
-                    value={projClient}
-                    onChange={(e) => setProjClient(e.target.value)}
-                    placeholder="e.g. Malaysia MRT Corp"
-                    className="w-full bg-paper/20 border border-line rounded px-3 py-2 text-xs outline-none focus:border-accent text-ink"
-                  />
-                </div>
+                  <form onSubmit={handleCreateProject} className="space-y-3.5">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-mono text-muted uppercase tracking-wider block">Project Name (Title) *</label>
+                      <input
+                        type="text"
+                        value={newProjName}
+                        onChange={(e) => setNewProjName(e.target.value)}
+                        placeholder="e.g. Sanken Airport Terminal Expansion"
+                        className="w-full bg-paper/20 border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                        required
+                      />
+                    </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-muted uppercase tracking-wider block">Project Ref / Contract No.</label>
-                  <input
-                    type="text"
-                    value={projContract}
-                    onChange={(e) => setProjContract(e.target.value)}
-                    placeholder="e.g. MRT-2026-SANKEN-0982"
-                    className="w-full bg-paper/20 border border-line rounded px-3 py-2 text-xs outline-none focus:border-accent text-ink"
-                  />
-                </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-mono text-muted uppercase tracking-wider block">Client Organization</label>
+                      <input
+                        type="text"
+                        value={newProjClient}
+                        onChange={(e) => setNewProjClient(e.target.value)}
+                        placeholder="e.g. Malaysia Civil Aviation"
+                        className="w-full bg-paper/20 border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                      />
+                    </div>
 
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-[10px] font-mono text-muted uppercase tracking-wider block">Project Core Site Location</label>
-                  <input
-                    type="text"
-                    value={projLocation}
-                    onChange={(e) => setProjLocation(e.target.value)}
-                    placeholder="e.g. Kuala Lumpur Central Hub"
-                    className="w-full bg-paper/20 border border-line rounded px-3 py-2 text-xs outline-none focus:border-accent text-ink"
-                  />
-                </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-mono text-muted uppercase tracking-wider block">Contract # / Reference</label>
+                      <input
+                        type="text"
+                        value={newProjContract}
+                        onChange={(e) => setNewProjContract(e.target.value)}
+                        placeholder="e.g. APT3-2026-SANKEN-0012"
+                        className="w-full bg-paper/20 border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                      />
+                    </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-muted uppercase tracking-wider block">Assigned Site Engineer (Constant)</label>
-                  <input
-                    type="text"
-                    value={projEngineer}
-                    onChange={(e) => setProjEngineer(e.target.value)}
-                    placeholder="e.g. Ir. Tan"
-                    className="w-full bg-paper/20 border border-line rounded px-3 py-2 text-xs outline-none focus:border-accent text-ink"
-                  />
-                  <p className="text-[9px] text-muted">Core verification engineer for quotas and sending batches.</p>
-                </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-mono text-muted uppercase tracking-wider block">Core Site Location</label>
+                      <input
+                        type="text"
+                        value={newProjLocation}
+                        onChange={(e) => setNewProjLocation(e.target.value)}
+                        placeholder="e.g. KLIA Terminal 3 Outer Sector"
+                        className="w-full bg-paper/20 border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                      />
+                    </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-muted uppercase tracking-wider block">Lead Admin Coordinator (Constant)</label>
-                  <input
-                    type="text"
-                    value={projAdmin}
-                    onChange={(e) => setProjAdmin(e.target.value)}
-                    placeholder="e.g. System Admin"
-                    className="w-full bg-paper/20 border border-line rounded px-3 py-2 text-xs outline-none focus:border-accent text-ink"
-                  />
-                  <p className="text-[9px] text-muted">Coordinator role responsible for final vendor approvals.</p>
-                </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-mono text-muted uppercase tracking-wider block">Assigned Site Engineer</label>
+                      <input
+                        type="text"
+                        value={newProjEngineer}
+                        onChange={(e) => setNewProjEngineer(e.target.value)}
+                        placeholder="e.g. Ir. Tan"
+                        className="w-full bg-paper/20 border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                      />
+                    </div>
 
-              </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-mono text-muted uppercase tracking-wider block">Lead Admin Coordinator</label>
+                      <input
+                        type="text"
+                        value={newProjAdmin}
+                        onChange={(e) => setNewProjAdmin(e.target.value)}
+                        placeholder="e.g. Admin Coordinator"
+                        className="w-full bg-paper/20 border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                      />
+                    </div>
 
-              <div className="border-t border-line/50 pt-4 flex justify-end">
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer"
-                >
-                  Save Project Setup
-                </button>
-              </div>
-            </form>
+                    <button
+                      type="submit"
+                      className="w-full py-2 bg-accent hover:bg-accent/90 text-white rounded text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer"
+                    >
+                      Register Project Block
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <h3 className="text-sm font-semibold text-ink font-display flex items-center gap-2">
+                      <Briefcase className="w-4 h-4 text-accent shrink-0" />
+                      <span>Edit Project Details</span>
+                    </h3>
+                    <p className="text-xs text-muted">
+                      Updating settings for: <strong className="font-semibold text-ink">{projName || "Selected project"}</strong>
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleUpdateProject} className="space-y-3.5">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-mono text-muted uppercase tracking-wider block">Project Name (Title) *</label>
+                      <input
+                        type="text"
+                        value={projName}
+                        onChange={(e) => setProjName(e.target.value)}
+                        placeholder="e.g. Sanken Airport Terminal Expansion"
+                        className="w-full bg-paper/20 border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                        required
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-mono text-muted uppercase tracking-wider block">Client</label>
+                        <input
+                          type="text"
+                          value={projClient}
+                          onChange={(e) => setProjClient(e.target.value)}
+                          placeholder="e.g. Malaysia Civil Aviation"
+                          className="w-full bg-paper/20 border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-mono text-muted uppercase tracking-wider block">Contract #</label>
+                        <input
+                          type="text"
+                          value={projContract}
+                          onChange={(e) => setProjContract(e.target.value)}
+                          placeholder="e.g. APT3-2026-SANKEN-0012"
+                          className="w-full bg-paper/20 border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-mono text-muted uppercase tracking-wider block">Core Site Location</label>
+                      <input
+                        type="text"
+                        value={projLocation}
+                        onChange={(e) => setProjLocation(e.target.value)}
+                        placeholder="e.g. KLIA Terminal 3 Outer Sector"
+                        className="w-full bg-paper/20 border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-mono text-muted uppercase tracking-wider block">Site Engineer</label>
+                        <input
+                          type="text"
+                          value={projEngineer}
+                          onChange={(e) => setProjEngineer(e.target.value)}
+                          placeholder="e.g. Ir. Tan"
+                          className="w-full bg-paper/20 border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-mono text-muted uppercase tracking-wider block">Lead Coordinator</label>
+                        <input
+                          type="text"
+                          value={projAdmin}
+                          onChange={(e) => setProjAdmin(e.target.value)}
+                          placeholder="e.g. Admin Coordinator"
+                          className="w-full bg-paper/20 border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-2 bg-accent hover:bg-accent/90 text-white rounded text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer"
+                    >
+                      Save/Update Project Details
+                    </button>
+                  </form>
+                </>
+              )}
+            </div>
           </div>
         )}
         
@@ -781,6 +1055,7 @@ export default function AdminPanel({
                       <th className="p-3 pl-4">Staff Name</th>
                       <th className="p-3">Username handle</th>
                       <th className="p-3">Scope Role assigned</th>
+                      <th className="p-3">Assigned Projects Focus Scope</th>
                       <th className="p-3 w-20 text-center">Action</th>
                     </tr>
                   </thead>
@@ -788,7 +1063,12 @@ export default function AdminPanel({
                     {users.map((u) => (
                       <tr key={u.username} className="hover:bg-paper/10">
                         <td className="p-3 font-semibold text-ink font-display">
-                          {u.name}
+                          <div>{u.name}</div>
+                          {u.recruiter_company && (
+                            <div className="text-[10px] text-accent font-mono mt-0.5 font-bold bg-accent/5 px-2 py-0.5 rounded border border-accent/15 w-fit flex items-center gap-1">
+                              <span>Agency: {u.recruiter_company}</span>
+                            </div>
+                          )}
                         </td>
                         <td className="p-3 font-mono text-muted">
                           @{u.username}
@@ -803,6 +1083,24 @@ export default function AdminPanel({
                           }`}>
                             {u.role.toUpperCase()}
                           </span>
+                        </td>
+                        <td className="p-3">
+                          {!u.assigned_projects || u.assigned_projects.length === 0 ? (
+                            <span className="text-accent font-semibold text-[9px] uppercase font-mono bg-accent/5 px-2 py-0.5 rounded border border-accent/15">
+                              All Projects (Unrestricted)
+                            </span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {u.assigned_projects.map(pid => {
+                                const proj = projects.find(p => p.id === pid);
+                                return (
+                                  <span key={pid} className="bg-paper border border-line text-muted text-[10px] px-1.5 py-0.5 rounded font-mono select-none" title={proj?.name || pid}>
+                                    {proj ? (proj.name.length > 20 ? proj.name.substring(0, 18) + "..." : proj.name) : pid}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
                         </td>
                         <td className="p-2 text-center">
                           <button
@@ -879,9 +1177,80 @@ export default function AdminPanel({
                   </select>
                 </div>
 
+                {newUserRole === "recruiter" && (
+                  <div className="bg-amber-500/5 border border-accent/15 rounded-lg p-3 space-y-1.5 animate-fade-in">
+                    <label className="block text-[10px] uppercase font-mono text-accent font-bold mb-1">
+                      Supply Agency Assigned (Required)
+                    </label>
+                    <select
+                      value={newUserRecruiterCompany}
+                      onChange={(e) => setNewUserRecruiterCompany(e.target.value)}
+                      className="w-full bg-card border border-accent/25 focus:border-accent rounded px-2.5 py-1.5 text-xs font-semibold text-accent outline-none cursor-pointer"
+                      required
+                    >
+                      <option value="" disabled>-- Select Supply Agency --</option>
+                      {companies.map(co => (
+                        <option key={co.id} value={co.name}>{co.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-[9px] text-muted/80 leading-normal">
+                      Note: Under Role 1, this user is locked strictly to this supply company to represent their agency data entry.
+                    </p>
+                  </div>
+                )}
+
+                {/* Assigned Projects Selector */}
+                <div>
+                  <label className="block text-[10px] uppercase font-mono text-muted mb-1">
+                    Assigned Project Focus (Multi-select)
+                  </label>
+                  <div className="bg-paper/20 border border-line rounded p-3 space-y-2 max-h-48 overflow-y-auto">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="user-project-all"
+                        checked={newUserAssignedProjects.length === 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setNewUserAssignedProjects([]);
+                          }
+                        }}
+                        className="rounded border-line text-accent focus:ring-accent cursor-pointer"
+                      />
+                      <label htmlFor="user-project-all" className="text-xs text-ink font-semibold cursor-pointer">
+                        All Projects (Unrestricted)
+                      </label>
+                    </div>
+                    <div className="border-t border-line/40 my-1"></div>
+                    {projects.map((p) => (
+                      <div key={p.id} className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          id={`user-project-${p.id}`}
+                          checked={newUserAssignedProjects.includes(p.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setNewUserAssignedProjects([...newUserAssignedProjects, p.id]);
+                            } else {
+                              setNewUserAssignedProjects(newUserAssignedProjects.filter(id => id !== p.id));
+                            }
+                          }}
+                          className="rounded border-line text-accent focus:ring-accent mt-0.5 cursor-pointer"
+                        />
+                        <label htmlFor={`user-project-${p.id}`} className="text-xs text-muted cursor-pointer leading-tight">
+                          {p.name} <span className="text-[9px] font-mono text-muted/60">({p.contract_number})</span>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted mt-1 leading-normal">
+                    Assigned personnel can only view pipeline metrics and perform intake/approvals operations on their chosen projects.
+                  </p>
+                </div>
+
                 <button
                   type="submit"
-                  className="w-full py-2 bg-accent hover:bg-accent/90 text-white rounded-lg text-xs font-mono uppercase tracking-wider cursor-pointer"
+                  className="w-full py-2.5 bg-accent hover:bg-accent/90 text-white rounded-lg text-xs font-mono uppercase tracking-wider cursor-pointer font-bold"
                 >
                   Provision Credentials
                 </button>

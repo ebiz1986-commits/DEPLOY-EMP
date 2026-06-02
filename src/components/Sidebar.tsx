@@ -1,5 +1,5 @@
 import React from "react";
-import { UserRole } from "../types";
+import { UserRole, ProjectDetail } from "../types";
 import {
   LayoutDashboard,
   UserPlus,
@@ -18,6 +18,9 @@ interface SidebarProps {
   setActiveTab: (tab: string) => void;
   onLogout: () => void;
   sseStatus: "connected" | "connecting" | "disconnected";
+  projects?: ProjectDetail[];
+  selectedProjectId?: string;
+  onSelectProject?: (id: string) => void;
 }
 
 export default function Sidebar({
@@ -26,7 +29,10 @@ export default function Sidebar({
   activeTab,
   setActiveTab,
   onLogout,
-  sseStatus
+  sseStatus,
+  projects = [],
+  selectedProjectId = "",
+  onSelectProject = () => {}
 }: SidebarProps) {
   
   // Checking permissions
@@ -112,6 +118,26 @@ export default function Sidebar({
             }`}></span>
           </span>
         </div>
+
+        {/* Project switcher dropdown */}
+        {projects && projects.length > 0 && (
+          <div className="mt-3.5 pt-3.5 border-t border-line/40 space-y-1 font-sans">
+            <label className="text-[9px] font-mono font-bold text-muted uppercase tracking-wider block">
+              Active Project Focus
+            </label>
+            <select
+              value={selectedProjectId}
+              onChange={(e) => onSelectProject(e.target.value)}
+              className="w-full text-xs font-semibold bg-paper-800 border border-line rounded px-2 py-1.5 outline-none focus:border-accent text-ink cursor-pointer hover:bg-paper/45 transition-colors"
+            >
+              {projects.map((p) => (
+                <option key={p.id} value={p.id} className="text-stone-800 bg-stone-100">
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Navigation Links */}
