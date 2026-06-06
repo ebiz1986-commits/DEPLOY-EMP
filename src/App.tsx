@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { UserRole, Worker, Category, Company, DropdownOption, User, ProjectDetail, SystemNotification } from "./types";
-import Sidebar from "./components/Sidebar";
+import Navbar from "./components/Navbar";
 import LoginView from "./components/LoginView";
 import DashboardView from "./components/DashboardView";
 import RecruiterIntakeView from "./components/RecruiterIntakeView";
@@ -69,6 +69,8 @@ export default function App() {
           setActiveTab("engineer");
         } else if (payload.role === "ops") {
           setActiveTab("operations");
+        } else if (payload.role === "admin") {
+          setActiveTab("admin");
         } else if (payload.role === "viewer") {
           setActiveTab("dashboard");
         } else {
@@ -269,6 +271,8 @@ export default function App() {
       setActiveTab("engineer");
     } else if (loggedInUser.role === "ops") {
       setActiveTab("operations");
+    } else if (loggedInUser.role === "admin") {
+      setActiveTab("admin");
     } else {
       setActiveTab("dashboard");
     }
@@ -281,7 +285,7 @@ export default function App() {
   };
 
   // REST API Methods for operations updates
-  const handleBulkAdd = async (newWorkers: { name: string; passport: string; category: string; supply_company: string }[]) => {
+  const handleBulkAdd = async (newWorkers: { name: string; passport: string; category: string; supply_company: string; doc_link?: string; bulk_doc_link?: string }[]) => {
     try {
       const res = await fetch("/api/workers/bulk-add", {
         method: "POST",
@@ -314,6 +318,38 @@ export default function App() {
       return { success: false, message: data.message || "Approval denied." };
     } catch (e) {
       return { success: false, message: "Network error during approval." };
+    }
+  };
+
+  const handleHoldWorker = async (id: string) => {
+    try {
+      const res = await fetch(`/api/workers/${id}/hold`, {
+        method: "PUT"
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        await fetchDbState();
+        return { success: true };
+      }
+      return { success: false, message: data.message || "Action denied." };
+    } catch (e) {
+      return { success: false, message: "Network error during action." };
+    }
+  };
+
+  const handleRejectWorker = async (id: string) => {
+    try {
+      const res = await fetch(`/api/workers/${id}/reject-gate`, {
+        method: "PUT"
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        await fetchDbState();
+        return { success: true };
+      }
+      return { success: false, message: data.message || "Action denied." };
+    } catch (e) {
+      return { success: false, message: "Network error during action." };
     }
   };
 
@@ -423,6 +459,21 @@ export default function App() {
     }
   };
 
+  const handleDeleteWorker = async (id: string) => {
+    try {
+      const res = await fetch(`/api/workers/${id}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        await fetchDbState();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-paper flex items-center justify-center font-sans">
@@ -464,6 +515,8 @@ export default function App() {
             selectedProjectId={selectedProjectId}
             onRefresh={fetchDbState}
             onSelectProject={handleSelectProject}
+            currentUser={user}
+            onDeleteWorker={handleDeleteWorker}
           />
         );
       case "intake":
@@ -477,6 +530,7 @@ export default function App() {
             onBulkAdd={handleBulkAdd}
             onUpdateWorker={handleUpdateWorker}
             currentUser={user}
+            onDeleteWorker={handleDeleteWorker}
           />
         );
       case "engineer":
@@ -491,6 +545,8 @@ export default function App() {
             projectDetail={projectDetail}
             onRefresh={fetchDbState}
             onApproveWorker={handleApproveWorker}
+            onHoldWorker={handleHoldWorker}
+            onRejectWorker={handleRejectWorker}
           />
         );
       case "operations":
@@ -511,6 +567,7 @@ export default function App() {
       case "admin":
         return (
           <AdminPanel
+            workers={workers}
             categories={categories}
             companies={companies}
             dropdownOptions={dropdownOptions}
@@ -540,7 +597,7 @@ export default function App() {
   };
 
   return (
-    <div id="application-container" className="flex bg-paper text-ink min-h-screen overflow-hidden selection:bg-accent selection:text-[#FDFBF6]">
+    <div id="application-container" className="flex flex-col bg-paper text-ink min-h-screen selection:bg-accent selection:text-[#FDFBF6]">
       {/* Realtime Live Broadcast Toast Stack overlay */}
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
         <AnimatePresence>
@@ -596,10 +653,9 @@ export default function App() {
         </AnimatePresence>
       </div>
 
-      {/* Sidebar navigation */}
-      <Sidebar
-        currentRole={user.role}
-        userName={user.name}
+      {/* Top Navbar Header */}
+      <Navbar
+        currentUser={user}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onLogout={handleLogout}
@@ -607,29 +663,12 @@ export default function App() {
         projects={visibleProjects}
         selectedProjectId={selectedProjectId}
         onSelectProject={handleSelectProject}
+        notifications={notifications}
+        onRefresh={fetchDbState}
       />
 
       {/* Main panel viewport with fluid animations */}
-      <div className="flex-1 flex flex-col min-w-0 bg-paper">
-        {/* Persistent topbar containing notifications centre */}
-        <header className="h-14 border-b border-line bg-card flex items-center justify-between px-6 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono tracking-wider font-bold text-muted bg-paper/55 border border-line px-2 py-1 rounded uppercase">
-              Operational Focus Active
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <NotificationsPanel
-              notifications={notifications}
-              projects={visibleProjects}
-              currentUser={user}
-              selectedProjectId={selectedProjectId}
-              onRefresh={fetchDbState}
-            />
-          </div>
-        </header>
-
+      <main className="flex-1 flex flex-col min-w-0 bg-paper overflow-y-auto">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -642,7 +681,7 @@ export default function App() {
             {renderTabContent()}
           </motion.div>
         </AnimatePresence>
-      </div>
+      </main>
     </div>
   );
 }

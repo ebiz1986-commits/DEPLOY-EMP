@@ -13,14 +13,14 @@ const readDb = (): DbState => {
     // Generate initial state (Seed data)
     const initialState: DbState = {
       categories: [
-        { id: "cat-1", name: "Construction", max_quota: 120 },
-        { id: "cat-2", name: "Agriculture", max_quota: 90 },
-        { id: "cat-3", name: "Manufacturing", max_quota: 75 },
-        { id: "cat-4", name: "F&B Services", max_quota: 40 },
-        { id: "cat-5", name: "Tech & Engineering", max_quota: 15 }
+        { id: "cat-1", name: "Labur", max_quota: 120, company_allocations: { "KSJ": 50, "SKILL": 40, "DEK": 30 } },
+        { id: "cat-2", name: "Finishing Carpenter", max_quota: 90, company_allocations: { "KSJ": 40, "SKILL": 30, "DEK": 20 } },
+        { id: "cat-3", name: "Meson", max_quota: 75, company_allocations: { "KSJ": 30, "SKILL": 25, "DEK": 20 } },
+        { id: "cat-4", name: "Rigger", max_quota: 40, company_allocations: { "KSJ": 15, "SKILL": 15, "DEK": 10 } },
+        { id: "cat-5", name: "welders", max_quota: 15, company_allocations: { "KSJ": 5, "SKILL": 5, "DEK": 5 } }
       ],
       companies: [
-        { id: "co-1", name: "Global Pathway Holdings" },
+        { id: "co-1", name: "KSJ" },
         { id: "co-2", name: "Star Recruitment Solutions" },
         { id: "co-3", name: "Apex Transit Ltd" },
         { id: "co-4", name: "Oasis Labor Supply" },
@@ -55,7 +55,7 @@ const readDb = (): DbState => {
           name: "Mohammad Rahman",
           passport: "A81729381",
           category: "Construction",
-          supply_company: "Global Pathway Holdings",
+          supply_company: "KSJ",
           sending_batch: "Batch #104",
           visa_doc_date: "2026-05-10",
           state: "active",
@@ -71,7 +71,7 @@ const readDb = (): DbState => {
           name: "Abdul Hasnat",
           passport: "B92837412",
           category: "Construction",
-          supply_company: "Global Pathway Holdings",
+          supply_company: "KSJ",
           sending_batch: "Batch #104",
           visa_doc_date: "2026-05-10",
           state: "active",
@@ -373,6 +373,8 @@ async function startServer() {
       });
     }
 
+    const initDateStr = new Date().toISOString().split("T")[0];
+
     const createdWorkers: Worker[] = newWorkersData.map((w) => ({
       id: `w-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
       name: w.name.trim(),
@@ -385,7 +387,14 @@ async function startServer() {
       bureau: "Pending",
       final_status: "Pending",
       created_at: new Date().toISOString(),
-      project_id: (w as any).project_id || db.selected_project_id || "proj-1"
+      project_id: (w as any).project_id || db.selected_project_id || "proj-1",
+      doc_link: (w as any).doc_link || "",
+      bulk_doc_link: (w as any).bulk_doc_link || "",
+      wa_doc_reject_reason: "",
+      doc_upload_wa_date: initDateStr,
+      status_date: initDateStr,
+      bureau_date: initDateStr,
+      final_status_date: initDateStr
     }));
 
     db.workers = [...createdWorkers, ...db.workers];
@@ -416,18 +425,23 @@ async function startServer() {
       return res.status(400).json({ success: false, message: "Worker is already active" });
     }
 
-    // Verify category quota
+    // Verify category and company-specific allocation
     const categoryName = worker.category;
     const category = db.categories.find((c) => c.name === categoryName);
     if (!category) {
       return res.status(400).json({ success: false, message: `Category "${categoryName}" does not exist` });
     }
 
-    const activeCount = db.workers.filter((w) => w.category === categoryName && w.state === "active").length;
-    if (activeCount >= category.max_quota) {
+    const companyName = worker.supply_company || "KSJ";
+    const companyLimit = category.company_allocations?.[companyName] ?? 0;
+    const activeCompanyCount = db.workers.filter(
+      (w) => w.category === categoryName && w.supply_company === companyName && w.state === "active"
+    ).length;
+
+    if (activeCompanyCount >= companyLimit) {
       return res.status(400).json({
         success: false,
-        message: `Cannot approve: Quota exhausted for category "${categoryName}" (${activeCount}/${category.max_quota} used)`
+        message: `Cannot approve: Labor allocation exhausted for vendor "${companyName}" under category "${categoryName}" (${activeCompanyCount}/${companyLimit} slots utilized)`
       });
     }
 
@@ -444,6 +458,62 @@ async function startServer() {
     const projDetail = db.projects?.find(p => p.id === worker.project_id) || db.project_detail;
     const notifMsg = `Engineer Ir. Tan approved worker candidate "${worker.name}" under "${worker.category}" category for project target: "${projDetail?.name || "Global"}"`;
     const newNotif = addSystemNotification(db, notifMsg, "Site Engineer", "engineer", "success", worker.project_id);
+
+    writeDb(db, newNotif);
+
+    res.json({ success: true, worker });
+  });
+
+  // 5a. API: Hold Worker (Engineer gate)
+  app.put("/api/workers/:id/hold", (req, res) => {
+    const { id } = req.params;
+    const db = readDb();
+
+    const workerIndex = db.workers.findIndex((w) => w.id === id);
+    if (workerIndex === -1) {
+      return res.status(404).json({ success: false, message: "Worker not found" });
+    }
+
+    const worker = db.workers[workerIndex];
+    
+    // Set state to held
+    worker.state = "held";
+    worker.last_updated = new Date().toISOString().split("T")[0];
+
+    db.workers[workerIndex] = worker;
+
+    // Add engineering hold notification
+    const projDetail = db.projects?.find(p => p.id === worker.project_id) || db.project_detail;
+    const notifMsg = `Engineer Ir. Tan placed worker candidate "${worker.name}" (${worker.category}) on HOLD for project: "${projDetail?.name || "Global"}" (Agency: ${worker.supply_company}).`;
+    const newNotif = addSystemNotification(db, notifMsg, "Site Engineer", "engineer", "warning", worker.project_id);
+
+    writeDb(db, newNotif);
+
+    res.json({ success: true, worker });
+  });
+
+  // 5b. API: Reject Worker (Engineer gate)
+  app.put("/api/workers/:id/reject-gate", (req, res) => {
+    const { id } = req.params;
+    const db = readDb();
+
+    const workerIndex = db.workers.findIndex((w) => w.id === id);
+    if (workerIndex === -1) {
+      return res.status(404).json({ success: false, message: "Worker not found" });
+    }
+
+    const worker = db.workers[workerIndex];
+    
+    // Set state to rejected
+    worker.state = "rejected";
+    worker.last_updated = new Date().toISOString().split("T")[0];
+
+    db.workers[workerIndex] = worker;
+
+    // Add engineering rejection notification
+    const projDetail = db.projects?.find(p => p.id === worker.project_id) || db.project_detail;
+    const notifMsg = `Engineer Ir. Tan REJECTED worker candidate "${worker.name}" (${worker.category}) under gate approvals for project: "${projDetail?.name || "Global"}" (Agency: ${worker.supply_company}).`;
+    const newNotif = addSystemNotification(db, notifMsg, "Site Engineer", "engineer", "error", worker.project_id);
 
     writeDb(db, newNotif);
 
@@ -507,9 +577,11 @@ async function startServer() {
       updates.final_status = "Pending";
     }
 
+    const currentDateStr = new Date().toISOString().split("T")[0];
+
     // Trigger check for doc_upload_wa change -> autostamp
     if (updates.doc_upload_wa !== undefined && updates.doc_upload_wa !== currentWorker.doc_upload_wa) {
-      currentWorker.last_updated = new Date().toISOString().split("T")[0];
+      currentWorker.last_updated = currentDateStr;
     }
 
     // Apply updates
@@ -518,9 +590,29 @@ async function startServer() {
       ...updates
     };
 
+    // Auto-stamp the exact transition dates for key status changes
+    if (updates.doc_upload_wa !== undefined && updates.doc_upload_wa !== currentWorker.doc_upload_wa) {
+      updatedWorker.doc_upload_wa_date = currentDateStr;
+    }
+    if (updates.status !== undefined && updates.status !== currentWorker.status) {
+      updatedWorker.status_date = currentDateStr;
+    }
+    if (updates.bureau !== undefined && updates.bureau !== currentWorker.bureau) {
+      updatedWorker.bureau_date = currentDateStr;
+    }
+    if (updates.final_status !== undefined && updates.final_status !== currentWorker.final_status) {
+      updatedWorker.final_status_date = currentDateStr;
+    }
+
     // Special trigger: If Status is changed to Visa Approved (xpact), reset bureau to Pending (recruiter bureau queue)
     if (updates.status === "Visa Approved (xpact)" && currentWorker.status !== "Visa Approved (xpact)") {
       updatedWorker.bureau = "Pending";
+      updatedWorker.bureau_pending_at = new Date().toISOString();
+    }
+
+    // Special trigger: If Bureau is changed to Complete, stamp the completed date
+    if (updates.bureau === "Complete" && currentWorker.bureau !== "Complete") {
+      updatedWorker.bureau_completed_at = new Date().toISOString();
     }
 
     db.workers[workerIndex] = updatedWorker;
@@ -565,6 +657,15 @@ async function startServer() {
         "Recruiter Bureau",
         "recruiter",
         updates.bureau === "Complete" ? "success" : "error",
+        updatedWorker.project_id
+      );
+    } else if (updates.wa_doc_reject_reason !== undefined && updates.wa_doc_reject_reason !== currentWorker.wa_doc_reject_reason && updates.wa_doc_reject_reason) {
+      notifObj = addSystemNotification(
+        db,
+        `Candidate "${updatedWorker.name}" (WA DOC) Reject Reason: ${updates.wa_doc_reject_reason}`,
+        "Coordinator",
+        "ops",
+        "error",
         updatedWorker.project_id
       );
     }

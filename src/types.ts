@@ -17,7 +17,7 @@ export interface Worker {
   supply_company: string;
   sending_batch?: string;
   visa_doc_date?: string;
-  state: 'pending' | 'active';
+  state: 'pending' | 'active' | 'rejected' | 'held';
   doc_upload_wa: 'Yes' | 'No';
   last_updated?: string;
   status: string; // e.g. "Pending", "Visa Approved (xpact)", "Visa Reject (xpact)", "Applied second time"
@@ -25,12 +25,22 @@ export interface Worker {
   final_status: string; // e.g. "Pending", "Booked", "Arrived"
   created_at: string;
   project_id?: string; // Support several projects
+  bureau_pending_at?: string;
+  bureau_completed_at?: string;
+  doc_link?: string;
+  bulk_doc_link?: string;
+  wa_doc_reject_reason?: string;
+  doc_upload_wa_date?: string;
+  status_date?: string;
+  bureau_date?: string;
+  final_status_date?: string;
 }
 
 export interface Category {
   id: string;
   name: string;
   max_quota: number;
+  company_allocations?: Record<string, number>;
 }
 
 export interface Company {

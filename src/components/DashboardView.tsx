@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Category, Worker, Company, ProjectDetail } from "../types";
+import { Category, Worker, Company, ProjectDetail, User } from "../types";
 import CompanyFilterHeader from "./CompanyFilterHeader";
 import { 
   TrendingUp, 
@@ -14,7 +14,13 @@ import {
   Building2,
   Lock,
   ChevronRight,
-  Briefcase
+  Briefcase,
+  Trash2,
+  CheckCircle,
+  Clock,
+  AlertTriangle,
+  XCircle,
+  Pause
 } from "lucide-react";
 import { 
   BarChart, 
@@ -37,6 +43,8 @@ interface DashboardViewProps {
   selectedProjectId?: string;
   onRefresh: () => void;
   onSelectProject?: (id: string) => void;
+  currentUser?: User | null;
+  onDeleteWorker?: (id: string) => Promise<boolean>;
 }
 
 type SortField = "name" | "passport" | "category" | "supply_company" | "state" | "status" | "bureau" | "final_status" | "created_at";
@@ -50,20 +58,36 @@ export default function DashboardView({
   projects = [],
   selectedProjectId = "",
   onRefresh,
-  onSelectProject = () => {}
+  onSelectProject = () => {},
+  currentUser,
+  onDeleteWorker
 }: DashboardViewProps) {
   
   // Scope filter: lock telemetry statistics and pipeline details on a selected project or view aggregation
   const [projectScope, setProjectScope] = useState<"all" | "selected">("selected");
+  
+  // Inner view tab to clean up visual clutter
+  const [dashboardTab, setDashboardTab] = useState<"roster" | "analytics">("roster");
+
+  // Inline deletion confirmation state
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Scoped workers list
   const scopedWorkers = useMemo(() => {
-    if (projectScope === "all") return workers;
-    return workers.filter((w) => w.project_id === selectedProjectId);
-  }, [workers, projectScope, selectedProjectId]);
+    let result = projectScope === "all" ? workers : workers.filter((w) => w.project_id === selectedProjectId);
+    if (currentUser?.role === "recruiter" && currentUser.recruiter_company) {
+      result = result.filter((w) => w.supply_company === currentUser.recruiter_company);
+    }
+    return result;
+  }, [workers, projectScope, selectedProjectId, currentUser]);
 
   // States for filtering
-  const [selectedCompany, setSelectedCompany] = useState("All");
+  const [selectedCompany, setSelectedCompany] = useState(() => {
+    if (currentUser?.role === "recruiter" && currentUser.recruiter_company) {
+      return currentUser.recruiter_company;
+    }
+    return "All";
+  });
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   
@@ -135,11 +159,20 @@ export default function DashboardView({
     const subset = scopedWorkers.filter((w) => selectedCompany === "All" || w.supply_company === selectedCompany);
     
     const countTotal = subset.length;
-    const countPending = subset.filter((w) => w.state === "pending").length;
+    const countPending = subset.filter((w) => w.state === "pending" || w.state === "held").length;
+    const countPendingOnly = subset.filter((w) => w.state === "pending").length;
+    const countHeld = subset.filter((w) => w.state === "held").length;
+    const countRejected = subset.filter((w) => w.state === "rejected").length;
     const countActive = subset.filter((w) => w.state === "active").length;
     
+    // Coordinator WA Status
+    const countWaCompleted = subset.filter((w) => w.doc_upload_wa === "Yes").length;
+    const countWaPending = subset.filter((w) => w.doc_upload_wa === "No").length;
+
     // Pipeline statuses
     const countVisaApproved = subset.filter((w) => w.status === "Visa Approved (xpact)").length;
+    const countVisaRejected = subset.filter((w) => w.status === "Visa Reject (xpact)").length;
+    const countBureauRejected = subset.filter((w) => w.bureau === "Reject").length;
     const countBureauComplete = subset.filter((w) => w.status === "Visa Approved (xpact)" && w.bureau === "Complete").length;
     const countBooked = subset.filter((w) => w.final_status === "Booked").length;
     const countArrived = subset.filter((w) => w.final_status === "Arrived").length;
@@ -147,8 +180,15 @@ export default function DashboardView({
     return {
       countTotal,
       countPending,
+      countPendingOnly,
+      countHeld,
+      countRejected,
       countActive,
+      countWaCompleted,
+      countWaPending,
       countVisaApproved,
+      countVisaRejected,
+      countBureauRejected,
       countBureauComplete,
       countBooked,
       countArrived
@@ -157,23 +197,36 @@ export default function DashboardView({
 
   // Categories quota utilization
   const categoryQuotas = useMemo(() => {
+    const isRecruiter = currentUser?.role === "recruiter";
+    const recCompany = currentUser?.recruiter_company || "";
+
     return categories.map((cat) => {
       // Find active workers in this category globally (for this project context or overall)
       const activeCount = scopedWorkers.filter((w) => w.category === cat.name && w.state === "active").length;
-      const remaining = Math.max(0, cat.max_quota - activeCount);
-      const percent = cat.max_quota > 0 ? (activeCount / cat.max_quota) * 100 : 0;
+      
+      const quotaLimit = isRecruiter 
+        ? (cat.company_allocations?.[recCompany] ?? 0)
+        : cat.max_quota;
+
+      const remaining = Math.max(0, quotaLimit - activeCount);
+      const percent = quotaLimit > 0 ? (activeCount / quotaLimit) * 100 : 0;
       return {
         ...cat,
         activeCount,
+        max_quota: quotaLimit,
         remaining,
         percent
       };
     });
-  }, [categories, scopedWorkers]);
+  }, [categories, scopedWorkers, currentUser]);
 
   // Compute comparative partner distribution data across all supply companies
   const companyDistributionData = useMemo(() => {
-    return companies.map((co) => {
+    const list = currentUser?.role === "recruiter" && currentUser.recruiter_company
+      ? companies.filter((co) => co.name === currentUser.recruiter_company)
+      : companies;
+
+    return list.map((co) => {
       // Filter matching current category and search criteria (to keep it interactive and highly responsive)
       const matches = scopedWorkers.filter((w) => {
         if (w.supply_company !== co.name) return false;
@@ -188,7 +241,7 @@ export default function DashboardView({
       });
 
       const active = matches.filter((w) => w.state === "active").length;
-      const pending = matches.filter((w) => w.state === "pending").length;
+      const pending = matches.filter((w) => w.state === "pending" || w.state === "held").length;
 
       return {
         name: co.name,
@@ -197,7 +250,45 @@ export default function DashboardView({
         Total: active + pending
       };
     });
-  }, [companies, scopedWorkers, selectedCategory, searchQuery]);
+  }, [companies, scopedWorkers, selectedCategory, searchQuery, currentUser]);
+
+  // Compute recruiting partner performance details including WA doc and Visa status after WA doc
+  const companyPerformanceStats = useMemo(() => {
+    // Determine which companies are visible
+    const visibleCompanies = currentUser?.role === "recruiter" && currentUser.recruiter_company
+      ? companies.filter(co => co.name === currentUser.recruiter_company)
+      : companies;
+
+    return visibleCompanies.map(co => {
+      // All workers belonging to this company in the current scoped project list
+      const companyWorkers = scopedWorkers.filter(w => w.supply_company === co.name);
+
+      const totalRegisters = companyWorkers.length;
+
+      // WA Doc stats
+      const waDocCompleted = companyWorkers.filter(w => w.doc_upload_wa === "Yes").length;
+      const waDocPending = companyWorkers.filter(w => w.doc_upload_wa === "No").length;
+
+      // Visa XPact status after WA Doc (i.e. among those with WA Doc = Yes)
+      const afterWaDocWorkers = companyWorkers.filter(w => w.doc_upload_wa === "Yes");
+      const visaXpactCompleted = afterWaDocWorkers.filter(w => w.status === "Visa Approved (xpact)").length;
+      const visaXpactPending = afterWaDocWorkers.filter(w => 
+        w.status === "Pending" || 
+        (w.status !== "Visa Approved (xpact)" && w.status !== "Visa Reject (xpact)")
+      ).length;
+      const visaXpactRejected = afterWaDocWorkers.filter(w => w.status === "Visa Reject (xpact)").length;
+
+      return {
+        companyName: co.name,
+        totalRegisters,
+        waDocCompleted,
+        waDocPending,
+        visaXpactCompleted,
+        visaXpactPending,
+        visaXpactRejected
+      };
+    });
+  }, [companies, scopedWorkers, currentUser]);
 
   // Export to Excel / CSV via SheetJS
   const handleExportExcel = () => {
@@ -243,53 +334,73 @@ export default function DashboardView({
         setSearchQuery={setSearchQuery}
         categoriesList={categoryNames}
         title="Workers Masterfile Portal"
-        subtitle="Operational overview, cohort telemetry, and global visa placement funnel monitoring."
+        subtitle="Operational overview and global visa placement funnel."
         onRefresh={onRefresh}
+        currentUser={currentUser}
       />
 
-      {/* Project Scope & Multi-Project Toggler */}
-      <div className="bg-card border border-line rounded-xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 font-sans">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-accent/10 text-accent rounded-lg flex items-center justify-center">
-            <Briefcase className="w-5 h-5" />
-          </div>
-          <div>
-            <h4 className="text-xs font-bold text-ink uppercase tracking-wider font-mono">Telemetry Data Scope</h4>
-            <p className="text-[11px] text-muted">Toggle between viewing a combined aggregate or drilling down to a specific project focus.</p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Scope selection pill */}
+      {/* 🛠️ Simplified Modern Unified Toolbar */}
+      <div className="bg-card border border-line rounded-xl p-4 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4 font-sans select-none">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          {/* Dashboard View Tabs */}
           <div className="inline-flex rounded-lg p-0.5 bg-paper border border-line">
             <button
-              onClick={() => setProjectScope("all")}
-              className={`px-3 py-1 text-xs font-mono font-medium rounded-md transition-all cursor-pointer ${
-                projectScope === "all"
+              onClick={() => setDashboardTab("roster")}
+              className={`px-3 py-1.5 text-xs font-mono font-medium rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                dashboardTab === "roster"
                   ? "bg-accent text-white shadow"
                   : "text-muted hover:text-ink"
               }`}
             >
-              Aggregate (All)
+              <Layers className="w-3.5 h-3.5" />
+              <span>Roster Registry</span>
+            </button>
+            <button
+              onClick={() => setDashboardTab("analytics")}
+              className={`px-3 py-1.5 text-xs font-mono font-medium rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                dashboardTab === "analytics"
+                  ? "bg-accent text-white shadow"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span>Analytics & Allocations</span>
+            </button>
+          </div>
+
+          <div className="hidden sm:block h-5 w-px bg-line/60" />
+
+          {/* Scope selection pill */}
+          <div className="inline-flex rounded-lg p-0.5 bg-paper border border-line">
+            <button
+              onClick={() => setProjectScope("all")}
+              className={`px-3 py-1.5 text-xs font-mono font-medium rounded-md transition-all cursor-pointer ${
+                projectScope === "all"
+                  ? "bg-stone-850 text-ink shadow bg-stone-100 border border-line/60"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              All Projects
             </button>
             <button
               onClick={() => setProjectScope("selected")}
-              className={`px-3 py-1 text-xs font-mono font-medium rounded-md transition-all cursor-pointer ${
+              className={`px-3 py-1.5 text-xs font-mono font-medium rounded-md transition-all cursor-pointer ${
                 projectScope === "selected"
-                  ? "bg-accent text-white shadow"
+                  ? "bg-stone-850 text-ink shadow bg-stone-100 border border-line/60"
                   : "text-muted hover:text-ink"
               }`}
             >
               Project Focus
             </button>
           </div>
+        </div>
 
-          {/* Quick Dropdown selector in dashboard */}
+        <div className="flex items-center gap-3">
           {projectScope === "selected" && projects.length > 0 && (
             <select
               value={selectedProjectId}
               onChange={(e) => onSelectProject(e.target.value)}
-              className="px-3 py-1 text-xs font-semibold bg-paper border border-line rounded-lg text-ink focus:border-accent outline-none cursor-pointer"
+              className="px-3 py-1.5 text-xs font-semibold bg-paper border border-line rounded-lg text-ink focus:border-accent outline-none cursor-pointer"
             >
               {projects.map((p) => (
                 <option key={p.id} value={p.id} className="text-stone-800 bg-stone-100">
@@ -301,63 +412,20 @@ export default function DashboardView({
         </div>
       </div>
 
-      {/* Unified Project Context Banner */}
-      {projectDetail && (
-        <div className={`border rounded-xl p-5 shadow-sm space-y-4 font-sans transition-all duration-350 ${
-          projectScope === "all" ? "bg-accent/[0.02] border-line/80" : "bg-amber-50/50 border-line"
-        }`}>
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono uppercase tracking-wider font-semibold ${
-                projectScope === "all" ? "bg-accent/15 text-accent" : "bg-gold/15 text-gold-900"
-              }`}>
-                {projectScope === "all" ? "Aggregate System Scope" : "Active Focus Project"}
-              </span>
-              <h1 className="text-lg font-display font-semibold tracking-tight text-ink mt-1.5 flex items-center gap-2">
-                <Briefcase className="w-4 h-4 text-accent shrink-0" />
-                <span>{projectScope === "all" ? "Combined Sanken Portfolio Telemetry" : projectDetail.name}</span>
-              </h1>
-              <p className="text-xs text-muted mt-0.5">
-                {projectScope === "all" 
-                  ? "Sankenseas master dashboard monitoring real-time pipelines, waiting list batches, and partner supply quotas across all construction sites combined."
-                  : "Multi-agency intake coordinates directly to this specific project's capacity limits. Engineer and Admin rosters remain constant."
-                }
-              </p>
-            </div>
-            {projectScope !== "all" && (
-              <div className="flex flex-wrap gap-2 text-[10px] font-mono text-muted">
-                <span className="px-2 py-0.5 bg-paper border border-line rounded">
-                  Ref Code: <span className="text-ink font-semibold">{projectDetail.contract_number}</span>
-                </span>
-                <span className="px-2 py-0.5 bg-paper border border-line rounded">
-                  Client: <span className="text-ink font-semibold">{projectDetail.client}</span>
-                </span>
-              </div>
-            )}
+      {/* Sleek Compact Project Information Band */}
+      {projectDetail && projectScope !== "all" && (
+        <div className="bg-amber-500/[0.03] border border-amber-500/15 rounded-xl px-4 py-3 text-xs font-sans flex flex-wrap gap-x-6 gap-y-2 items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-accent animate-pulse"></span>
+            <span className="font-semibold text-ink">{projectDetail.name}</span>
+            <span className="text-muted">({projectDetail.contract_number})</span>
           </div>
-          
-          {projectScope !== "all" && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3.5 border-t border-line/50">
-              <div className="space-y-0.5">
-                <span className="text-[9px] font-mono text-muted uppercase tracking-wider block">Project Location</span>
-                <p className="text-xs font-semibold text-ink">{projectDetail.location}</p>
-              </div>
-              <div className="space-y-0.5">
-                <span className="text-[9px] font-mono text-muted uppercase tracking-wider block">Site Engineer In Charge</span>
-                <p className="text-xs font-semibold text-accent">{projectDetail.engineer_in_charge}</p>
-              </div>
-              <div className="space-y-0.5">
-                <span className="text-[9px] font-mono text-muted uppercase tracking-wider block">Lead Admin Coordinator</span>
-                <p className="text-xs font-semibold text-ink">{projectDetail.admin_coordinator}</p>
-              </div>
-              <div className="space-y-0.5">
-                <span className="text-[9px] font-mono text-muted uppercase tracking-wider block">Authorized Feed Companies</span>
-                <p className="text-xs font-semibold text-ink truncate" title={companies.map(c => c.name).join(", ")}>
-                  {companies.length} recruiting agencies active
-                </p>
-              </div>
-            </div>
-          )}
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted text-[11px] font-mono">
+            <span>Client: <strong className="text-ink font-semibold">{projectDetail.client}</strong></span>
+            <span>Location: <strong className="text-ink font-semibold">{projectDetail.location}</strong></span>
+            <span>Engineer: <strong className="text-accent font-semibold">{projectDetail.engineer_in_charge}</strong></span>
+            <span>Coordinator: <strong className="text-ink font-semibold">{projectDetail.admin_coordinator}</strong></span>
+          </div>
         </div>
       )}
 
@@ -414,7 +482,7 @@ export default function DashboardView({
             </span>
           </div>
           <p className="text-[10px] text-muted mt-2">
-            Approved workers consuming category quotas.
+            Approved workers consuming category labor allocations.
           </p>
         </div>
 
@@ -438,8 +506,271 @@ export default function DashboardView({
 
       </div>
 
-      {/* Analytics and Funnel Insights Segment */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* 🏢 Your Vendor Allocation Status (KSJ) */}
+      <div className="bg-card border border-line rounded-xl p-5 shadow-sm space-y-4 font-sans select-none" id="dashboard-vendor-remaining-allocations">
+        <div className="flex items-center justify-between border-b border-line pb-2.5">
+          <span className="text-sm font-semibold text-ink font-display flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-accent shrink-0" />
+            {currentUser?.role === "recruiter" 
+              ? `Your Vendor Allocation Status (${currentUser.recruiter_company || "KSJ"})` 
+              : `Your Vendor Allocation Status (${selectedCompany === "All" ? (companies[0]?.name || "KSJ") : selectedCompany})`
+            }
+          </span>
+          <span className="text-[10px] text-accent font-bold animate-pulse font-mono uppercase tracking-wider">Real-time Allotment Capacity</span>
+        </div>
+        
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          {categories.map((cat) => {
+            const resolvedCompany = currentUser?.role === "recruiter" 
+              ? (currentUser.recruiter_company || "KSJ") 
+              : (selectedCompany === "All" ? (companies[0]?.name || "KSJ") : selectedCompany);
+
+            const limit = cat.company_allocations?.[resolvedCompany] ?? 0;
+            const approvedCount = workers.filter(w => w.category === cat.name && w.supply_company === resolvedCompany && w.state === "active").length;
+            const rem = limit - approvedCount;
+            return (
+              <div key={cat.id} className="bg-paper/50 border border-line p-3 rounded-lg flex flex-col justify-between">
+                <span className="text-[11px] text-ink font-bold truncate block" title={cat.name}>{cat.name}</span>
+                <div className="flex items-center justify-between text-[10px] font-mono mt-2 pt-1 border-t border-line/20">
+                  <span className="text-muted font-semibold">{approvedCount}/{limit}</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${rem <= 0 ? 'text-red-700 bg-red-100/50' : rem <= 2 ? 'text-amber-700 bg-amber-100/50' : 'text-green-700 bg-green-100/50'}`}>
+                    {rem} left
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 📊 Recruiting Agency Performance Desk & WA Doc / Visa Status Summary */}
+      <div className="bg-card border border-line rounded-xl p-5 shadow-sm space-y-4 font-sans select-none">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent/10 text-accent text-[11px] font-mono uppercase tracking-wider font-bold">
+              Agency Status Overview
+            </span>
+            <span className="text-[10px] text-muted font-mono">
+              Project Context: {projectScope === "all" ? "All Projects Combined" : (projectDetail?.name || "Active Project")}
+            </span>
+          </div>
+          <h3 className="text-base font-semibold text-ink font-display mt-2 flex items-center gap-2">
+            <Building2 className="w-5 h-5 text-accent shrink-0" />
+            <span>Recruiting Agency Performance Desk</span>
+          </h3>
+          <p className="text-xs text-stone-500 mt-1">
+            Live tracker of registered candidates, coordinator &quot;WA Doc&quot; validations, and downstream &quot;Visa Approved (xpact)&quot; completions.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pt-2">
+          {companyPerformanceStats.map((coStats) => {
+            const hasRegisters = coStats.totalRegisters > 0;
+            return (
+              <div 
+                key={coStats.companyName}
+                className="bg-paper/40 p-4 rounded-xl border border-line/75 hover:border-accent/40 transition-all shadow-xs flex flex-col justify-between space-y-4"
+              >
+                {/* Agency Title and Registers badge */}
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-accent/5 rounded-lg border border-accent/15">
+                      <Briefcase className="w-4 h-4 text-accent" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-ink leading-tight">
+                        {coStats.companyName}
+                      </h4>
+                      <p className="text-[10px] text-muted font-mono">Supply Agency</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-2xl font-serif font-bold text-ink block">
+                      {coStats.totalRegisters}
+                    </span>
+                    <span className="text-[9px] font-mono text-muted uppercase tracking-wider block">
+                      Total Registers
+                    </span>
+                  </div>
+                </div>
+
+                {/* Sub-panels representing WA Doc and Visa status after WA Doc */}
+                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-line/45">
+                  
+                  {/* Left Column: WA Doc Status (WhatsApp Checker) */}
+                  <div className="space-y-2">
+                    <span className="text-[9px] font-mono text-muted uppercase tracking-wider block font-semibold border-b border-line/30 pb-1">
+                      &quot;WA Doc&quot; Status
+                    </span>
+                    
+                    <div className="space-y-1.5">
+                      {/* WA Completed */}
+                      <div className="flex items-center justify-between text-xs font-mono">
+                        <span className="text-stone-500 flex items-center gap-1">
+                          <CheckCircle className="w-3.5 h-3.5 text-success-green shrink-0" />
+                          <span>Completed</span>
+                        </span>
+                        <span className="font-bold text-success-green">
+                          {coStats.waDocCompleted}
+                        </span>
+                      </div>
+
+                      {/* WA Pending */}
+                      <div className="flex items-center justify-between text-xs font-mono">
+                        <span className="text-stone-500 flex items-center gap-1" title="Pending from Coordinator">
+                          <Clock className="w-3.5 h-3.5 text-gold shrink-0" />
+                          <span>Pending</span>
+                        </span>
+                        <span className="font-bold text-gold">
+                          {coStats.waDocPending}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Visa Approved (xpact) after WA Doc */}
+                  <div className="space-y-2">
+                    <span className="text-[9px] font-mono text-muted uppercase tracking-wider block font-semibold border-b border-line/30 pb-1">
+                      Visa (XPact) After WA
+                    </span>
+                    
+                    <div className="space-y-1.5">
+                      {/* Visa Approved */}
+                      <div className="flex items-center justify-between text-xs font-mono">
+                        <span className="text-stone-500 flex items-center gap-1">
+                          <CheckCircle className="w-3.5 h-3.5 text-info shrink-0" />
+                          <span>Approved</span>
+                        </span>
+                        <span className="font-bold text-info">
+                          {coStats.visaXpactCompleted}
+                        </span>
+                      </div>
+
+                      {/* Visa Pending */}
+                      <div className="flex items-center justify-between text-xs font-mono">
+                        <span className="text-stone-500 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                          <span>Pending</span>
+                        </span>
+                        <span className="font-bold text-stone-600">
+                          {coStats.visaXpactPending}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Optional Visa Rejections info if any exist */}
+                {coStats.visaXpactRejected > 0 && (
+                  <div className="bg-red-50/50 border border-bad/15 rounded-lg p-2 text-[10px] text-bad flex items-center gap-1.5 font-mono">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{coStats.visaXpactRejected} post-WA registration(s) rejected by embassy</span>
+                  </div>
+                )}
+
+                {/* Progress helper */}
+                {hasRegisters && (
+                  <div className="pt-2">
+                    <div className="w-full bg-paper rounded-full h-1.5 overflow-hidden border border-line/30">
+                      <div 
+                        className="bg-accent h-full rounded-full transition-all duration-300"
+                        style={{ width: `${(coStats.waDocCompleted / coStats.totalRegisters) * 100}%` }}
+                        title={`${((coStats.waDocCompleted / coStats.totalRegisters) * 100).toFixed(0)}% WA Doc Checked`}
+                      ></div>
+                    </div>
+                    <div className="flex justify-between items-center text-[9px] text-muted font-mono mt-1">
+                      <span>{((coStats.waDocCompleted / coStats.totalRegisters) * 100).toFixed(0)}% WA Compliant</span>
+                      <span>{coStats.visaXpactCompleted} placement(s) in flight</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Categories Quota Utilization Section */}
+      <div className="bg-card border border-line rounded-xl p-5 shadow-sm space-y-4 font-sans select-none">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-ink font-display">Category Vacancy & Vendor Allocations</h3>
+            <p className="text-[11px] text-muted">Limits set by System Administrator. Action is fully locked at zero vacancies.</p>
+          </div>
+          <div className="px-2 py-1 bg-stone-900 border border-stone-800 text-[#FDFBF6] text-[10px] font-mono rounded flex items-center gap-1">
+            <Lock className="w-3 h-3 text-amber-500" />
+            <span>CAP CHECK</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
+          {categoryQuotas.map((cq) => {
+            const isLocked = cq.remaining <= 0;
+            return (
+              <div key={cq.id} className={`p-3.5 border rounded-xl transition-all ${
+                isLocked ? "bg-red-50/40 border-bad/30" : "bg-paper/20 border-line"
+              }`}>
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <h4 className="text-xs font-semibold text-ink flex items-center gap-1.5">
+                      {cq.name} 
+                      {isLocked && (
+                        <span className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-bad text-[#FDFBF6] text-[9px] font-mono tracking-tight rounded-md">
+                          FULLY OCCUPIED
+                        </span>
+                      )}
+                    </h4>
+                    <p className="text-[10px] text-muted font-mono">
+                      Active Utilization: {cq.activeCount} of {cq.max_quota} allocation ({(cq.percent).toFixed(0)}%)
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className={`text-[10px] font-mono block ${isLocked ? "text-bad font-bold" : "text-success-green"}`}>
+                      Vacancy Remaining
+                    </span>
+                    <span className={`text-base font-serif font-bold ${isLocked ? "text-bad" : "text-ink"}`}>
+                      {cq.remaining}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Progress bar with lock visual highlight */}
+                <div className="w-full bg-paper rounded-full h-2 overflow-hidden border border-line/40">
+                  <div 
+                    className={`h-full rounded-full transition-all duration-300 ${isLocked ? "bg-bad animate-pulse" : "bg-accent"}`}
+                    style={{ width: `${Math.min(100, cq.percent)}%` }}
+                  ></div>
+                </div>
+
+                {/* Vendor Allotments Display block */}
+                <div className="mt-3 pt-2 border-t border-line/40 space-y-1">
+                  <span className="text-[9px] font-mono text-muted uppercase tracking-wider block font-semibold">Supply Vendors Slots:</span>
+                  {(currentUser?.role === "recruiter" && currentUser.recruiter_company
+                    ? companies.filter((co) => co.name === currentUser.recruiter_company)
+                    : companies
+                  ).map((co) => {
+                    const limit = cq.company_allocations?.[co.name] ?? 0;
+                    const activeCount = workers.filter(w => w.category === cq.name && w.supply_company === co.name && w.state === "active").length;
+                    const rem = Math.max(0, limit - activeCount);
+                    return (
+                      <div key={co.id} className="text-[10px] flex justify-between font-mono text-muted leading-tight border-b border-dashed border-line/10 pb-0.5 last:border-0 last:pb-0">
+                        <span>{co.name}:</span>
+                        <span className={`font-bold ${rem <= 0 ? 'text-[#C82333]' : 'text-accent'}`}>{rem} / {limit} left</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {dashboardTab === "analytics" ? (
+        <>
+          {/* Analytics and Funnel Insights Segment */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Supply Company Comparative Distribution Bar Chart */}
         <div className="lg:col-span-7 bg-card border border-line rounded-xl p-5 shadow-sm space-y-4 flex flex-col justify-between">
@@ -509,7 +840,7 @@ export default function DashboardView({
 
           <div className="border-t border-line/40 pt-3 flex items-center justify-between text-[10px] text-muted font-mono">
             <span>Graph reflects category and search queries</span>
-            <span>Total Units: {workers.length}</span>
+            <span>Total Units: {scopedWorkers.length}</span>
           </div>
         </div>
 
@@ -601,79 +932,25 @@ export default function DashboardView({
 
           <div className="bg-paper/40 border border-line/45 rounded-lg p-3 text-[10px] text-muted space-y-1">
             <p className="font-semibold text-ink">Pipeline Flow Protocol:</p>
-            <p>1. Recruiter registers intake → worker saved as <span className="mono-text">pending</span>.</p>
-            <p>2. Engineer inputs Sending Batch → visa doc date stamps today, <span className="mono-text">active quota -1</span>.</p>
+            <p>1. Recruiter registers intake → worker saved as <span className="mono-text font-bold">pending</span>.</p>
+            <p>2. Engineer inputs Sending Batch → visa doc date stamps today, <span className="mono-text font-bold">active allocation -1</span>.</p>
             <p>3. Operations manages documentation, visa feedback, transit bookings, and arrivals.</p>
           </div>
         </div>
 
       </div>
 
-      {/* Categories Quota Utilization Section */}
-      <div className="bg-card border border-line rounded-xl p-5 shadow-sm space-y-4 font-sans">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-ink font-display">Category Vacancy Quotas</h3>
-            <p className="text-[11px] text-muted">Limits set by System Administrator. Action is fully locked at zero vacancys.</p>
-          </div>
-          <div className="px-2 py-1 bg-neutral-900 border border-neutral-800 text-[#FDFBF6] text-[10px] font-mono rounded flex items-center gap-1">
-            <Lock className="w-3 h-3 text-amber-500" />
-            <span>CAP CHECK</span>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
-          {categoryQuotas.map((cq) => {
-            const isLocked = cq.remaining <= 0;
-            return (
-              <div key={cq.id} className={`p-3.5 border rounded-xl transition-all ${
-                isLocked ? "bg-red-50/40 border-bad/30" : "bg-paper/20 border-line"
-              }`}>
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h4 className="text-xs font-semibold text-ink flex items-center gap-1.5">
-                      {cq.name} 
-                      {isLocked && (
-                        <span className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-bad text-[#FDFBF6] text-[9px] font-mono tracking-tight rounded-md">
-                          FULLY OCCUPIED
-                        </span>
-                      )}
-                    </h4>
-                    <p className="text-[10px] text-muted font-mono">
-                      Active Utilisation: {cq.activeCount} of {cq.max_quota} allocation ({(cq.percent).toFixed(0)}%)
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <span className={`text-[10px] font-mono block ${isLocked ? "text-bad font-bold" : "text-success-green"}`}>
-                      Vacancy Remaining
-                    </span>
-                    <span className={`text-base font-serif font-bold ${isLocked ? "text-bad" : "text-ink"}`}>
-                      {cq.remaining}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Progress bar with lock visual highlight */}
-                <div className="w-full bg-paper rounded-full h-3 overflow-hidden border border-line/40">
-                  <div 
-                    className={`h-full rounded-full transition-all duration-300 ${isLocked ? "bg-bad animate-pulse" : "bg-accent"}`}
-                    style={{ width: `${Math.min(100, cq.percent)}%` }}
-                  ></div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Main Filterable Data Table Segment */}
-      <div className="bg-card border border-line rounded-xl shadow-sm overflow-hidden font-sans">
+        </>
+      ) : (
+        /* Main Filterable Data Table Segment */
+        <div className="bg-card border border-line rounded-xl shadow-sm overflow-hidden font-sans">
         
         {/* Table Control Header */}
         <div className="p-4 border-b border-line bg-paper/25 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
             <h3 className="text-sm font-semibold text-ink font-display">Combined Master Records Archive</h3>
-            <p className="text-[11px] text-muted">Showing {sortedWorkers.length} of {workers.length} matching rows</p>
+            <p className="text-[11px] text-muted">Showing {sortedWorkers.length} of {scopedWorkers.length} matching rows</p>
           </div>
 
           <button
@@ -696,22 +973,26 @@ export default function DashboardView({
                 <th className="p-3 cursor-pointer hover:text-ink transition-colors" onClick={() => toggleSort("supply_company")}>
                   Supply Company {sortField === "supply_company" && (sortOrder === "asc" ? "↑" : "↓")}
                 </th>
-                <th className="p-3">State</th>
+                <th className="p-3">Engineer Action</th>
+                <th className="p-3">Gate / Visa Status</th>
                 <th className="p-3">Batch / Approved</th>
                 <th className="p-3">WA doc</th>
                 <th className="p-3">Visa XPact status</th>
                 <th className="p-3">Bureau status</th>
                 <th className="p-3">Final status</th>
-                <th className="p-3 pr-5 text-right cursor-pointer hover:text-ink transition-colors" onClick={() => toggleSort("created_at")}>
+                <th className={currentUser?.role === "admin" ? "p-3 text-right cursor-pointer hover:text-ink transition-colors" : "p-3 pr-5 text-right cursor-pointer hover:text-ink transition-colors"} onClick={() => toggleSort("created_at")}>
                   Created Date {sortField === "created_at" && (sortOrder === "asc" ? "↑" : "↓")}
                 </th>
+                {currentUser?.role === "admin" && (
+                  <th className="p-3 pr-5 text-right font-mono text-[10px] text-muted">Delete Actions</th>
+                )}
               </tr>
             </thead>
             
             <tbody className="divide-y divide-line/40">
               {sortedWorkers.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="p-12 text-center text-muted">
+                  <td colSpan={currentUser?.role === "admin" ? 13 : 12} className="p-12 text-center text-muted">
                     <div className="max-w-xs mx-auto space-y-2">
                       <p className="font-semibold text-ink">No matching archives found</p>
                       <p className="text-[11px]">Adjust your company switcher, job category filter, or text inquiry string.</p>
@@ -744,10 +1025,41 @@ export default function DashboardView({
                       <td className="p-3 text-muted truncate max-w-[140px]">
                         {w.supply_company}
                       </td>
-                      
-                      {/* State */}
+
+                      {/* Engineer Action */}
                       <td className="p-3">
-                        {isPending ? (
+                        {w.state === "active" ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-success-green/10 text-success-green border border-success-green/20 text-[10px] font-mono font-bold rounded-md">
+                            AUTHORIZED
+                          </span>
+                        ) : w.state === "held" ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/15 text-amber-600 border border-amber-500/20 text-[10px] font-mono font-bold rounded-md animate-pulse">
+                            HOLD
+                          </span>
+                        ) : w.state === "rejected" ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-bad/10 text-bad border border-bad/20 text-[10px] font-mono font-bold rounded-md">
+                            REJECTED
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-paper text-muted border border-line/60 text-[10px] font-mono font-semibold rounded-md">
+                            AWAITING GATE
+                          </span>
+                        )}
+                      </td>
+                      
+                      {/* State (Gate / Visa Status) */}
+                      <td className="p-3">
+                        {w.state === "held" ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 font-mono bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                            ON HOLD
+                          </span>
+                        ) : w.state === "rejected" ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-bad font-mono bg-bad/10 px-2 py-0.5 rounded-full border border-bad/20">
+                            <span className="h-1.5 w-1.5 rounded-full bg-bad"></span>
+                            REJECTED
+                          </span>
+                        ) : w.state === "pending" ? (
                           <span className="inline-flex items-center gap-1 text-[10px] text-gold font-mono bg-gold/15 px-2 py-0.5 rounded-full border border-gold/20">
                             <span className="h-1.5 w-1.5 rounded-full bg-gold"></span>
                             PENDING
@@ -767,6 +1079,10 @@ export default function DashboardView({
                             <span className="text-ink font-medium">{w.sending_batch || "Direct"}</span>
                             <span className="block text-[9px] text-[#8a8175]">{w.visa_doc_date}</span>
                           </div>
+                        ) : w.state === "held" ? (
+                          <span className="text-amber-600 font-semibold italic">Gate Hold</span>
+                        ) : w.state === "rejected" ? (
+                          <span className="text-bad font-semibold italic">Gate Reject</span>
                         ) : (
                           <span className="italic">Awaiting Gate</span>
                         )}
@@ -823,9 +1139,44 @@ export default function DashboardView({
                       </td>
                       
                       {/* Created date */}
-                      <td className="p-3 pr-5 text-right font-mono text-[10px] text-muted whitespace-nowrap">
+                      <td className={currentUser?.role === "admin" ? "p-3 text-right font-mono text-[10px] text-muted whitespace-nowrap" : "p-3 pr-5 text-right font-mono text-[10px] text-muted whitespace-nowrap"}>
                         {new Date(w.created_at).toLocaleDateString()}
                       </td>
+
+                      {currentUser?.role === "admin" && (
+                        <td className="p-3 pr-5 text-right whitespace-nowrap">
+                          {confirmDeleteId === w.id ? (
+                            <div className="inline-flex items-center gap-1.5 justify-end">
+                              <span className="text-[9px] text-[#A30000] font-mono font-bold animate-pulse">Are you sure?</span>
+                              <button
+                                onClick={async () => {
+                                  if (onDeleteWorker) {
+                                    await onDeleteWorker(w.id);
+                                  }
+                                  setConfirmDeleteId(null);
+                                }}
+                                className="px-2 py-0.5 text-[9px] font-bold text-white bg-bad hover:bg-bad/90 rounded border border-bad transition-all cursor-pointer"
+                              >
+                                Yes
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteId(null)}
+                                className="px-2 py-0.5 text-[9px] font-medium text-ink bg-paper border border-line hover:bg-paper/85 rounded transition-all cursor-pointer"
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDeleteId(w.id)}
+                              className="inline-flex items-center justify-center p-1.5 text-bad hover:bg-bad/10 rounded-md transition-colors cursor-pointer"
+                              title="Delete candidate record"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </td>
+                      )}
 
                     </tr>
                   );
@@ -836,6 +1187,7 @@ export default function DashboardView({
         </div>
 
       </div>
+      )}
 
     </div>
   );

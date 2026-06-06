@@ -13,11 +13,11 @@ export default function LoginView({ onLogin }: LoginViewProps) {
   const [loading, setLoading] = useState(false);
 
   const demoAccounts = [
-    { label: "Sanken Overseas Recruiter", username: "recruiter", role: "recruiter", name: "Farid (Recruiter)", badge: "Role 1" },
-    { label: "Engineer (Gate)", username: "engineer", role: "engineer", name: "Ir. Tan (Engineer)", badge: "Role 2" },
-    { label: "Ops Manager", username: "ops", role: "ops", name: "Sarah (Operations)", badge: "Role 3" },
-    { label: "System Admin", username: "admin", role: "admin", name: "Admin (System Admin)", badge: "Role 4" },
-    { label: "Executive Viewer", username: "viewer", role: "viewer", name: "Viewer (Dashboard Only)", badge: "Role 5" }
+    { label: "Sanken Overseas Recruiter", username: "recruiter", role: "recruiter", name: "Farid (Recruiter)", badge: "Agent" },
+    { label: "Engineer (Gate)", username: "engineer", role: "engineer", name: "Ir. Tan (Engineer)", badge: "Engineer" },
+    { label: "Ops Manager", username: "ops", role: "ops", name: "Sarah (Operations)", badge: "Operations" },
+    { label: "System Admin", username: "admin", role: "admin", name: "Admin (System Admin)", badge: "Admin" },
+    { label: "Executive Viewer", username: "viewer", role: "viewer", name: "Viewer (Dashboard Only)", badge: "Viewer" }
   ];
 
   const handleFormSubmit = async (e: React.FormEvent) => {
@@ -79,9 +79,8 @@ export default function LoginView({ onLogin }: LoginViewProps) {
           </div>
 
           <div className="mt-12 md:mt-0 pt-6 border-t border-stone-800 text-[11px] font-mono text-stone-500 flex flex-col gap-1">
-            <div>SYSTEM: ONLINE (PORT 3000)</div>
-            <div>STAKEHOLDER SYNC: REALTIME</div>
-            <div>PREVIEW: ACTIVE MIGRATION</div>
+            <div>Sanken Overseas Private Ltd.</div>
+            <div>Colombo, Sri Lanka</div>
           </div>
         </div>
 

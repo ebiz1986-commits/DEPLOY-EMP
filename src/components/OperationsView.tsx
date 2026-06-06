@@ -10,7 +10,9 @@ import {
   Clock, 
   CheckCircle2,
   AlertTriangle,
-  Lock
+  Lock,
+  ExternalLink,
+  FolderOpen
 } from "lucide-react";
 
 interface OperationsViewProps {
@@ -229,9 +231,65 @@ export default function OperationsView({
                     <tr key={w.id} className="hover:bg-paper/10 transition-colors">
                       
                       {/* Worker credentials info */}
-                      <td className="p-3 pl-5 max-w-[150px]">
-                        <div className="font-semibold text-ink font-display truncate">{w.name}</div>
+                      <td className="p-3 pl-5 max-w-[170px]">
+                        <div className="font-semibold text-ink font-display truncate" title={w.name}>{w.name}</div>
                         <div className="text-[10px] text-muted truncate" title={w.supply_company}>{w.supply_company}</div>
+
+                        {/* Associated Documents */}
+                        {(w.doc_link || w.bulk_doc_link) && (
+                          <div className="mt-1 flex flex-wrap gap-1 items-center">
+                            {w.doc_link && (
+                              <a
+                                href={w.doc_link.startsWith("http") ? w.doc_link : `https://${w.doc_link}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-0.5 font-mono text-[8px] bg-accent/10 border border-accent/20 hover:bg-accent/15 text-accent px-1 py-0.5 rounded font-semibold transition-all shrink-0"
+                                title="Download Candidate Document URL"
+                              >
+                                <ExternalLink className="w-2 h-2 shrink-0" />
+                                <span>Worker Doc</span>
+                              </a>
+                            )}
+                            {w.bulk_doc_link && (
+                              <a
+                                href={w.bulk_doc_link.startsWith("http") ? w.bulk_doc_link : `https://${w.bulk_doc_link}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-0.5 font-mono text-[8px] bg-emerald-600/10 border border-emerald-500/20 hover:bg-emerald-600/15 text-emerald-700 px-1 py-0.5 rounded font-semibold transition-all shrink-0"
+                                title="Download Bulk Folder"
+                              >
+                                <FolderOpen className="w-2 h-2 shrink-0" />
+                                <span>Bulk (Batch)</span>
+                              </a>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Inline Document Link update for Coordinator */}
+                        <div className="mt-1">
+                          <input
+                            type="text"
+                            placeholder="Set Doc Link..."
+                            defaultValue={w.doc_link || ""}
+                            onBlur={async (e) => {
+                              const newVal = e.target.value.trim();
+                              if (newVal !== (w.doc_link || "")) {
+                                await onUpdateWorker(w.id, { doc_link: newVal });
+                              }
+                            }}
+                            onKeyDown={async (e) => {
+                              if (e.key === "Enter") {
+                                const newVal = (e.target as HTMLInputElement).value.trim();
+                                if (newVal !== (w.doc_link || "")) {
+                                  await onUpdateWorker(w.id, { doc_link: newVal });
+                                }
+                                (e.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            className="bg-paper/30 text-[9px] border border-line/45 focus:border-accent rounded px-1.5 py-0.5 outline-none font-mono text-muted focus:text-ink w-24 focus:w-36 transition-all"
+                            title="Set reference URL to candidate file"
+                          />
+                        </div>
                       </td>
 
                       {/* Passport */}
@@ -248,26 +306,51 @@ export default function OperationsView({
 
                       {/* WhatsApp Doc Checked checkbox list toggle */}
                       <td className="p-3">
-                        <div className="flex items-center gap-1.5 min-w-[130px]">
-                          <select
-                            value={w.doc_upload_wa}
-                            onChange={(e) => handleFieldChange(w.id, "doc_upload_wa", e.target.value)}
-                            disabled={isDocUploadLocked}
-                            className={`text-[11px] px-2.5 py-1 font-mono rounded border outline-none w-full ${
-                              isDocUploadLocked 
-                                ? "bg-stone-100 text-stone-400 border-stone-200 cursor-not-allowed" 
-                                : "cursor-pointer"
-                            } ${
-                              w.doc_upload_wa === "Yes" 
-                                ? "bg-success-green/10 text-success-green border-success-green/40 font-semibold" 
-                                : "bg-red-50 text-bad border-bad/40"
-                            }`}
-                          >
-                            <option value="No">No (Checked Out)</option>
-                            <option value="Yes">Yes (WhatsApp OK)</option>
-                          </select>
-                          {isDocUploadLocked && (
-                            <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" title="Locked: Only system admin can modify after change applied" />
+                        <div className="flex flex-col gap-1.5 min-w-[145px]">
+                          <div className="flex items-center gap-1.5 w-full">
+                            <select
+                              value={w.doc_upload_wa}
+                              onChange={(e) => handleFieldChange(w.id, "doc_upload_wa", e.target.value)}
+                              disabled={isDocUploadLocked}
+                              className={`text-[11px] px-2.5 py-1 font-mono rounded border outline-none w-full ${
+                                isDocUploadLocked 
+                                  ? "bg-stone-100 text-stone-400 border-stone-200 cursor-not-allowed" 
+                                  : "cursor-pointer"
+                              } ${
+                                w.doc_upload_wa === "Yes" 
+                                  ? "bg-success-green/10 text-success-green border-success-green/40 font-semibold" 
+                                  : "bg-red-50 text-bad border-bad/40"
+                              }`}
+                            >
+                              <option value="No">No (Checked Out)</option>
+                              <option value="Yes">Yes (WhatsApp OK)</option>
+                            </select>
+                            {isDocUploadLocked && (
+                              <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" title="Locked: Only system admin can modify after change applied" />
+                            )}
+                          </div>
+                          <span className="block text-[9px] text-[#8a8175] font-mono pl-1" title="WA Doc Change Date">
+                            Date: {w.doc_upload_wa_date || w.last_updated || (w.created_at ? w.created_at.split("T")[0] : "—")}
+                          </span>
+                          {w.doc_upload_wa === "No" && (
+                            <div className="w-full flex flex-col gap-0.5">
+                              <span className="text-[8px] uppercase tracking-wider font-semibold text-bad font-mono">Reject Reason:</span>
+                              <input
+                                type="text"
+                                placeholder="Enter rejection reason..."
+                                defaultValue={w.wa_doc_reject_reason || ""}
+                                onBlur={(e) => handleFieldChange(w.id, "wa_doc_reject_reason", e.target.value.trim())}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    handleFieldChange(w.id, "wa_doc_reject_reason", (e.target as HTMLInputElement).value.trim());
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                                disabled={isDocUploadLocked}
+                                className="text-[10px] w-full px-2 py-1 bg-stone-50 border border-stone-200 focus:border-bad/65 rounded shadow-sm outline-none font-sans"
+                                title="Press Enter or update focus to save rejection details"
+                              />
+                            </div>
                           )}
                         </div>
                       </td>
@@ -306,6 +389,9 @@ export default function OperationsView({
                               <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" title={w.doc_upload_wa !== "Yes" ? "Locked: 'DOC upload' must be Yes" : "Locked: Only system admin can modify after change applied"} />
                             )}
                           </div>
+                          <span className="block text-[9px] text-[#8a8175] font-mono pl-1" title="Visa Status Change Date">
+                            Date: {w.status_date || (w.created_at ? w.created_at.split("T")[0] : "—")}
+                          </span>
                           {w.doc_upload_wa !== "Yes" && (
                             <div className="text-[9px] text-bad font-mono pl-1">Requires DOC Upload</div>
                           )}
@@ -340,6 +426,9 @@ export default function OperationsView({
                               } />
                             )}
                           </div>
+                          <span className="block text-[9px] text-[#8a8175] font-mono pl-1" title="Bureau Change Date">
+                            Date: {w.bureau_date || (w.bureau_completed_at ? w.bureau_completed_at.split("T")[0] : (w.created_at ? w.created_at.split("T")[0] : "—"))}
+                          </span>
                           {w.doc_upload_wa !== "Yes" && (
                             <div className="text-[9px] text-bad font-mono pl-1">Requires DOC Upload</div>
                           )}
@@ -368,6 +457,9 @@ export default function OperationsView({
                               <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" title={w.doc_upload_wa !== "Yes" ? "Locked: 'DOC upload' must be Yes" : "Locked: Only system admin can modify after change applied"} />
                             )}
                           </div>
+                          <span className="block text-[9px] text-[#8a8175] font-mono pl-1" title="Final Placement Change Date">
+                            Date: {w.final_status_date || (w.created_at ? w.created_at.split("T")[0] : "—")}
+                          </span>
                           {w.doc_upload_wa !== "Yes" && (
                             <div className="text-[9px] text-bad font-mono pl-1">Requires DOC Upload</div>
                           )}

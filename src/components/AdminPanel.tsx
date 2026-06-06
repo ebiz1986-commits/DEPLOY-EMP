@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Category, Company, DropdownOption, User, UserRole, ProjectDetail } from "../types";
+import { Category, Company, DropdownOption, User, UserRole, ProjectDetail, Worker } from "../types";
 import { 
   Sliders, 
   Layers, 
@@ -12,10 +12,30 @@ import {
   CheckCircle,
   HelpCircle,
   UserPlus,
-  Briefcase
+  Briefcase,
+  Pencil,
+  Check,
+  X,
+  Lock,
+  Unlock,
+  ChevronRight,
+  TrendingUp,
+  BarChart2
 } from "lucide-react";
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer,
+  Cell
+} from "recharts";
 
 interface AdminPanelProps {
+  workers: Worker[];
   categories: Category[];
   companies: Company[];
   dropdownOptions: DropdownOption[];
@@ -36,6 +56,7 @@ interface AdminPanelProps {
 }
 
 export default function AdminPanel({
+  workers = [],
   categories,
   companies,
   dropdownOptions,
@@ -154,9 +175,48 @@ export default function AdminPanel({
     }
   };
 
+  // Inline edit state for Categories
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editingCatName, setEditingCatName] = useState<string>("");
+  const [editingCatQuota, setEditingCatQuota] = useState<number>(100);
+  const [editingCompanyAllocations, setEditingCompanyAllocations] = useState<Record<string, number>>({});
+
+  // Inline edit state for Companies
+  const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
+  const [editingCompanyName, setEditingCompanyName] = useState<string>("");
+
+  // Deletion inline states to avoid iframe window.confirm blocks
+  const [confirmDeleteCatId, setConfirmDeleteCatId] = useState<string | null>(null);
+  const [confirmDeleteCompanyId, setConfirmDeleteCompanyId] = useState<string | null>(null);
+  const [confirmDeleteUsername, setConfirmDeleteUsername] = useState<string | null>(null);
+  const [confirmDeleteProjId, setConfirmDeleteProjId] = useState<string | null>(null);
+
+  // Selected admin vendor for separate Supply Vendor wise allocation management
+  const [selectedAdminVendor, setSelectedAdminVendor] = useState<string>("");
+
+  React.useEffect(() => {
+    if (!selectedAdminVendor && companies.length > 0) {
+      setSelectedAdminVendor(companies[0].name);
+    }
+  }, [companies, selectedAdminVendor]);
+
   // States for Category Management
   const [newCatName, setNewCatName] = useState("");
   const [newCatQuota, setNewCatQuota] = useState(100);
+  const [newCompanyAllocations, setNewCompanyAllocations] = useState<Record<string, number>>({});
+
+  React.useEffect(() => {
+    // Sync company-specific allocations when company list changes
+    setNewCompanyAllocations((prev) => {
+      const copy = { ...prev };
+      companies.forEach((co) => {
+        if (copy[co.name] === undefined) {
+          copy[co.name] = 10;
+        }
+      });
+      return copy;
+    });
+  }, [companies]);
 
   // States for Company Management
   const [newCompanyName, setNewCompanyName] = useState("");
@@ -191,7 +251,7 @@ export default function AdminPanel({
     setTimeout(() => setErrorMsg(""), 4000);
   };
 
-  // Quotas / Categories Change handler
+  // Allocations & Categories Change handler
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -201,24 +261,36 @@ export default function AdminPanel({
       return;
     }
 
+    // Clean and verify company-specific allocations
+    const cleanedAllocations: Record<string, number> = {};
+    companies.forEach((co) => {
+      cleanedAllocations[co.name] = Number(newCompanyAllocations[co.name] || 0);
+    });
+    const sumAllocations = Object.values(cleanedAllocations).reduce((sum, val) => sum + val, 0);
+
     const updated = [
       ...categories,
-      { id: `cat-${Date.now()}`, name: newCatName.trim(), max_quota: Number(newCatQuota) }
+      { 
+        id: `cat-${Date.now()}`, 
+        name: newCatName.trim(), 
+        max_quota: sumAllocations,
+        company_allocations: cleanedAllocations
+      }
     ];
 
     const isOk = await onUpdateCategories(updated);
     if (isOk) {
-      showSuccess(`Added Category: "${newCatName.trim()}" at quota ${newCatQuota}`);
+      showSuccess(`Added Category: "${newCatName.trim()}" with total allocation ${sumAllocations}`);
       setNewCatName("");
+      const resetAlls: Record<string, number> = {};
+      companies.forEach((co) => { resetAlls[co.name] = 10; });
+      setNewCompanyAllocations(resetAlls);
     } else {
       showError("Failed to update database.");
     }
   };
 
   const handleDeleteCategory = async (catId: string, catName: string) => {
-    if (!window.confirm(`Are you absolutely sure you want to delete the category "${catName}"? This will unlink existing counters.`)) {
-      return;
-    }
     const updated = categories.filter((c) => c.id !== catId);
     const isOk = await onUpdateCategories(updated);
     if (isOk) {
@@ -241,7 +313,50 @@ export default function AdminPanel({
 
     const isOk = await onUpdateCategories(updated);
     if (isOk) {
-      showSuccess("Quota updated successfully!");
+      showSuccess("Allocation updated successfully!");
+    }
+  };
+
+  const handleSaveCategoryEdit = async (catId: string) => {
+    if (!editingCatName.trim()) {
+      showError("Category name cannot be empty.");
+      return;
+    }
+    
+    // Check if another category has the same name
+    const hasDuplicate = categories.some(
+      (c) => c.id !== catId && c.name.toLowerCase() === editingCatName.toLowerCase().trim()
+    );
+    if (hasDuplicate) {
+      showError(`Job Category "${editingCatName.trim()}" already exists.`);
+      return;
+    }
+
+    // Clean and verify company-specific allocations
+    const cleanedAllocations: Record<string, number> = {};
+    companies.forEach((co) => {
+      cleanedAllocations[co.name] = Number(editingCompanyAllocations[co.name] || 0);
+    });
+    const sumAllocations = Object.values(cleanedAllocations).reduce((sum, val) => sum + val, 0);
+
+    const updated = categories.map((c) => {
+      if (c.id === catId) {
+        return { 
+          ...c, 
+          name: editingCatName.trim(), 
+          max_quota: sumAllocations,
+          company_allocations: cleanedAllocations
+        };
+      }
+      return c;
+    });
+
+    const isOk = await onUpdateCategories(updated);
+    if (isOk) {
+      showSuccess(`Updated Category: "${editingCatName.trim()}" successfully with total allocation ${sumAllocations}`);
+      setEditingCatId(null);
+    } else {
+      showError("Failed to save changes.");
     }
   };
 
@@ -270,14 +385,42 @@ export default function AdminPanel({
   };
 
   const handleDeleteCompany = async (coId: string, coName: string) => {
-    if (!window.confirm(`Delete "${coName}"? Active workers tagged to this item will be preserved.`)) return;
-
     const updated = companies.filter((c) => c.id !== coId);
     const isOk = await onUpdateCompanies(updated);
     if (isOk) {
       showSuccess(`Deleted Supply Company: ${coName}.`);
     } else {
       showError("Failed to remove company.");
+    }
+  };
+
+  const handleSaveCompanyEdit = async (coId: string) => {
+    if (!editingCompanyName.trim()) {
+      showError("Company name cannot be empty.");
+      return;
+    }
+
+    const hasDuplicate = companies.some(
+      (c) => c.id !== coId && c.name.toLowerCase() === editingCompanyName.toLowerCase().trim()
+    );
+    if (hasDuplicate) {
+      showError(`Vendor Agency "${editingCompanyName.trim()}" already exists.`);
+      return;
+    }
+
+    const updated = companies.map((c) => {
+      if (c.id === coId) {
+        return { ...c, name: editingCompanyName.trim() };
+      }
+      return c;
+    });
+
+    const isOk = await onUpdateCompanies(updated);
+    if (isOk) {
+      showSuccess(`Updated Vendor: "${editingCompanyName.trim()}" successfully!`);
+      setEditingCompanyId(null);
+    } else {
+      showError("Failed to save company update.");
     }
   };
 
@@ -351,10 +494,6 @@ export default function AdminPanel({
       return;
     }
 
-    if (!window.confirm(`Revoke session token and permanently delete account representing user: @${username}?`)) {
-      return;
-    }
-
     const isOk = await onDeleteUser(username);
     if (isOk) {
       showSuccess(`Account representing @${username} was deleted.`);
@@ -415,18 +554,6 @@ export default function AdminPanel({
         </button>
 
         <button
-          onClick={() => setActiveSubTab("quotas")}
-          className={`px-4 py-2 text-xs font-mono uppercase tracking-wider border-b-2 font-semibold whitespace-nowrap cursor-pointer transition-colors ${
-            activeSubTab === "quotas"
-              ? "border-accent text-accent"
-              : "border-transparent text-muted hover:text-ink"
-          }`}
-        >
-          <Layers className="w-3.5 h-3.5 inline mr-1" />
-          Quotas
-        </button>
-
-        <button
           onClick={() => setActiveSubTab("companies")}
           className={`px-4 py-2 text-xs font-mono uppercase tracking-wider border-b-2 font-semibold whitespace-nowrap cursor-pointer transition-colors ${
             activeSubTab === "companies"
@@ -435,7 +562,19 @@ export default function AdminPanel({
           }`}
         >
           <Building2 className="w-3.5 h-3.5 inline mr-1" />
-          Supply Companies
+          Supply Companies / Vendors
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab("quotas")}
+          className={`px-4 py-2 text-xs font-mono uppercase tracking-wider border-b-2 font-semibold whitespace-nowrap cursor-pointer transition-colors ${
+            activeSubTab === "quotas"
+              ? "border-accent text-accent"
+              : "border-transparent text-muted hover:text-ink"
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5 inline mr-1" />
+          Labor Allocations
         </button>
 
         <button
@@ -538,33 +677,54 @@ export default function AdminPanel({
                             <div>{proj.client}</div>
                             <div className="text-[10px] italic">{proj.location}</div>
                           </td>
-                          <td className="p-2.5 text-right space-x-1 whitespace-nowrap">
-                            <button
-                              onClick={() => handleLoadProjectForEdit(proj)}
-                              className="px-2 py-1 bg-paper/60 hover:bg-paper border border-line rounded text-[10px] text-ink font-mono font-medium"
-                            >
-                              Edit/Load
-                            </button>
-                            <button
-                              onClick={async () => {
-                                if (projects.length <= 1) {
-                                  showError("Cannot delete the only project block.");
-                                  return;
-                                }
-                                if (window.confirm(`Are you sure you want to delete "${proj.name}"? Sanken workers assigned to this project will remain in the database but lose project affiliation.`)) {
-                                  const ok = await onDeleteProject(proj.id);
-                                  if (ok) {
-                                    showSuccess(`Project "${proj.name}" removed successfully.`);
-                                  } else {
-                                    showError("Failed to remove project from database.");
-                                  }
-                                }
-                              }}
-                              disabled={projects.length <= 1}
-                              className="px-2 py-1 bg-red-50 hover:bg-red-100 text-bad border border-bad/30 rounded text-[10px] font-mono font-medium disabled:opacity-30 disabled:cursor-not-allowed"
-                            >
-                              Delete
-                            </button>
+                          <td className="p-2.5 text-right whitespace-nowrap pr-4">
+                            {confirmDeleteProjId === proj.id ? (
+                              <div className="inline-flex items-center gap-1.5 justify-end">
+                                <span className="text-[9px] text-[#A30000] font-mono font-bold animate-pulse">Confirm Delete?</span>
+                                <button
+                                  onClick={async () => {
+                                    const ok = await onDeleteProject(proj.id);
+                                    if (ok) {
+                                      showSuccess(`Project "${proj.name}" removed successfully.`);
+                                    } else {
+                                      showError("Failed to remove project from database.");
+                                    }
+                                    setConfirmDeleteProjId(null);
+                                  }}
+                                  className="px-2 py-0.5 text-[9px] font-bold text-white bg-bad hover:bg-bad/90 rounded border border-bad transition-all cursor-pointer"
+                                >
+                                  Yes
+                                </button>
+                                <button
+                                  onClick={() => setConfirmDeleteProjId(null)}
+                                  className="px-2 py-0.5 text-[9px] font-medium text-ink bg-paper border border-line hover:bg-paper/85 rounded transition-all cursor-pointer"
+                                >
+                                  No
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="inline-flex items-center gap-1.5 justify-end">
+                                <button
+                                  onClick={() => handleLoadProjectForEdit(proj)}
+                                  className="px-2 py-1 bg-paper/60 hover:bg-paper border border-line rounded text-[10px] text-ink font-mono font-medium cursor-pointer"
+                                >
+                                  Edit/Load
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (projects.length <= 1) {
+                                      showError("Cannot delete the only project block.");
+                                      return;
+                                    }
+                                    setConfirmDeleteProjId(proj.id);
+                                  }}
+                                  disabled={projects.length <= 1}
+                                  className="px-2 py-1 bg-red-50 hover:bg-red-100 text-bad border border-bad/30 rounded text-[10px] font-mono font-medium disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       );
@@ -767,95 +927,405 @@ export default function AdminPanel({
           </div>
         )}
         
-        {/* SUB 1: QUOTAS & CATEGORIES */}
+        {/* SUB 1: LABOUR ALLOCATIONS & CATEGORIES */}
         {activeSubTab === "quotas" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
-            {/* Left Quotas Table list */}
-            <div className="lg:col-span-8 bg-card border border-line rounded-xl p-5 shadow-sm space-y-4">
-              <div>
-                <h3 className="text-sm font-semibold text-ink font-display">Manage Categories & Max Quotas</h3>
-                <p className="text-xs text-muted">Update quotas instantly. Changes propagate dynamically to the Engineer Approval Screen.</p>
+          <div className="space-y-6 animate-fade-in">
+            {/* Vendor Filter / Selector tab bar */}
+            <div className="bg-card border border-line rounded-xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 font-sans">
+              <div className="space-y-1">
+                <h3 className="text-sm font-semibold text-ink font-display flex items-center gap-1.5">
+                  <Sliders className="w-4 h-4 text-accent" />
+                  Supply Vendor Wise Labor Allocations
+                </h3>
+                <p className="text-xs text-muted">
+                  View and manage allocation quotas separate by Supply Vendor / Agency. Allocations limit worker approvals dynamically.
+                </p>
               </div>
 
-              <div className="border border-line/60 rounded-lg overflow-hidden">
-                <table className="w-full text-left text-xs bg-card">
-                  <thead className="bg-paper text-muted font-mono text-[9px] uppercase">
-                    <tr>
-                      <th className="p-3 pl-4">Category Name</th>
-                      <th className="p-3 w-56">Max Limit Quota Allocation</th>
-                      <th className="p-3 w-16 text-center">Delete</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line/45">
-                    {categories.map((c) => (
-                      <tr key={c.id} className="hover:bg-paper/10">
-                        <td className="p-3 font-semibold text-ink font-display">
-                          {c.name}
-                        </td>
-                        <td className="p-2">
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              min={0}
-                              value={c.max_quota}
-                              onChange={(e) => handleUpdateQuotaValue(c.id, e.target.value)}
-                              className="w-24 bg-paper/20 border border-line px-2 py-1 text-xs outline-none rounded font-mono font-bold"
-                            />
-                            <span className="text-[10px] text-muted">Active threshold</span>
-                          </div>
-                        </td>
-                        <td className="p-2 text-center">
-                          <button
-                            onClick={() => handleDeleteCategory(c.id, c.name)}
-                            className="text-muted hover:text-bad p-1 rounded hover:bg-neutral-50 cursor-pointer"
-                          >
-                            <Trash2 className="w-4 h-4 mx-auto" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-1.5 shrink-0">
+                <span className="text-[10px] uppercase font-bold tracking-wider font-mono text-muted block">
+                  Select Active Vendor:
+                </span>
+                <div className="flex flex-wrap gap-1.5 p-1 bg-paper border border-line rounded-xl">
+                  {companies.map((co) => {
+                    const isActive = selectedAdminVendor === co.name;
+                    // Count total slots of this company
+                    const totalCompanyAlloc = categories.reduce((sum, cat) => sum + (cat.company_allocations?.[co.name] ?? 0), 0);
+                    return (
+                      <button
+                        type="button"
+                        key={co.id}
+                        onClick={() => setSelectedAdminVendor(co.name)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold tracking-tight transition-all cursor-pointer flex items-center gap-1.5 ${
+                          isActive
+                            ? "bg-accent text-white shadow-sm"
+                            : "text-muted hover:text-ink hover:bg-paper/40"
+                        }`}
+                      >
+                        <Building2 className="w-3.5 h-3.5" />
+                        <span>{co.name}</span>
+                        <span className={`px-1.5 py-0.2 text-[9px] rounded-md ${
+                          isActive ? "bg-white/20 text-white" : "bg-paper border border-line/30 text-muted"
+                        }`}>
+                          {totalCompanyAlloc} slots
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            {/* Right category registration adder */}
-            <div className="lg:col-span-4 bg-card border border-line rounded-xl p-5 shadow-sm space-y-4 h-fit">
-              <div>
-                <h3 className="text-sm font-semibold text-ink font-display">Register New Cohort Category</h3>
-                <p className="text-xs text-muted">Enter a unique job category name to set live.</p>
+            {/* Main content grid: Left contains Vendor details and Histogram, Right contains Register form */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              
+              {/* Left Side: Selected Vendor dashboard & custom table */}
+              <div className="lg:col-span-8 space-y-6">
+                
+                {/* Max Labor Histogram */}
+                {selectedAdminVendor && (() => {
+                  const histogramData = categories.map((cat) => {
+                    const limit = cat.company_allocations?.[selectedAdminVendor] ?? 0;
+                    const activeCount = workers.filter(
+                      (w) => w.category === cat.name && w.supply_company === selectedAdminVendor && w.state === "active"
+                    ).length;
+                    const rem = Math.max(0, limit - activeCount);
+                    return {
+                      name: cat.name.length > 15 ? cat.name.substring(0, 15) + "..." : cat.name,
+                      "Allocated": limit,
+                      "Active": activeCount,
+                      "Remaining": rem,
+                    };
+                  });
+
+                  return (
+                    <div className="bg-card border border-line rounded-xl p-5 shadow-sm space-y-3 font-sans">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <BarChart2 className="w-4 h-4 text-accent" />
+                          <h4 className="text-xs font-bold uppercase tracking-wider font-mono text-ink">
+                            Max Labor Histogram & Quota Utilization ({selectedAdminVendor})
+                          </h4>
+                        </div>
+                        <span className="text-[10px] text-muted font-mono bg-paper border border-line/60 px-2 py-0.5 rounded-md">
+                          Live Quota Allocation Status
+                        </span>
+                      </div>
+
+                      <div className="h-48 w-full pt-2">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={histogramData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.04)" />
+                            <XAxis dataKey="name" tick={{ fontSize: 9 }} stroke="rgba(0,0,0,0.5)" />
+                            <YAxis tick={{ fontSize: 9 }} stroke="rgba(0,0,0,0.5)" />
+                            <Tooltip 
+                              contentStyle={{ background: "#FDFBF6", border: "1px solid rgba(0,0,0,0.15)", borderRadius: "8px", fontSize: "10px" }}
+                            />
+                            <Legend wrapperStyle={{ fontSize: "9px" }} />
+                            <Bar dataKey="Allocated" fill="#1E293B" radius={[3, 3, 0, 0]} />
+                            <Bar dataKey="Active" fill="#F59E0B" radius={[3, 3, 0, 0]} />
+                            <Bar dataKey="Remaining" fill="#10B981" radius={[3, 3, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Quotas Table list */}
+                <div className="bg-card border border-line rounded-xl p-5 shadow-sm space-y-4 font-sans">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-sm font-semibold text-ink font-display">
+                        Category Allocations for {selectedAdminVendor}
+                      </h3>
+                      <p className="text-xs text-muted">
+                        Configure category limits for {selectedAdminVendor}. Redundant categories can be safely deleted.
+                      </p>
+                    </div>
+                    <span className="px-2 py-1 bg-[#1E293B] text-white text-[10px] font-mono rounded-md uppercase tracking-wider border border-neutral-700">
+                      {selectedAdminVendor}
+                    </span>
+                  </div>
+
+                  <div className="border border-line/60 rounded-xl overflow-hidden">
+                    <table className="w-full text-left text-xs bg-card">
+                      <thead className="bg-paper text-muted font-mono text-[9px] uppercase">
+                        <tr>
+                          <th className="p-3 pl-4">Category Name</th>
+                          <th className="p-3 w-80">Allocation & Live Utilization</th>
+                          <th className="p-3 text-right pr-6 w-44">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-line/45">
+                        {categories.map((c) => {
+                          const isEditing = editingCatId === c.id;
+                          const isConfirmingDelete = confirmDeleteCatId === c.id;
+
+                          // Statistics for this vendor under this category
+                          const limit = c.company_allocations?.[selectedAdminVendor] ?? 0;
+                          const activeCount = workers.filter(
+                            (w) => w.category === c.name && w.supply_company === selectedAdminVendor && w.state === "active"
+                          ).length;
+                          const rem = Math.max(0, limit - activeCount);
+                          const percent = limit > 0 ? (activeCount / limit) * 100 : 0;
+                          const isLocked = limit <= 0 || rem <= 0;
+
+                          return (
+                            <tr key={c.id} className="hover:bg-paper/10 transition-colors">
+                              {/* Category Name Column */}
+                              <td className="p-3 font-semibold text-ink font-display">
+                                {isEditing ? (
+                                  <div className="space-y-1">
+                                    <label className="text-[9px] font-mono text-muted uppercase block">Category Name</label>
+                                    <input
+                                      type="text"
+                                      value={editingCatName}
+                                      onChange={(e) => setEditingCatName(e.target.value)}
+                                      className="w-full bg-paper border border-line focus:border-accent rounded px-2 py-1 text-xs outline-none text-ink font-semibold"
+                                      placeholder="Category Name"
+                                    />
+                                  </div>
+                                ) : (
+                                  <span className="text-sm">{c.name}</span>
+                                )}
+                              </td>
+
+                              {/* Allocated Slots & Occupancy Status Column */}
+                              <td className="p-3">
+                                {isEditing ? (
+                                  <div className="space-y-2 py-1">
+                                    <div className="flex items-center gap-2 border-b border-line/30 pb-2">
+                                      <span className="text-[11px] font-bold text-accent w-36 truncate flex items-center gap-1">
+                                        <Building2 className="w-3.5 h-3.5" />
+                                        {selectedAdminVendor}
+                                      </span>
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        value={editingCompanyAllocations[selectedAdminVendor] ?? 0}
+                                        onChange={(e) => {
+                                          const val = Number(e.target.value);
+                                          setEditingCompanyAllocations((prev) => ({
+                                            ...prev,
+                                            [selectedAdminVendor]: val,
+                                          }));
+                                        }}
+                                        className="w-20 bg-paper border border-line px-1.5 py-0.5 text-xs outline-none rounded font-mono font-bold focus:border-accent text-ink text-right"
+                                      />
+                                      <span className="text-[10px] text-muted">slots</span>
+                                    </div>
+                                    
+                                    <details className="cursor-pointer group">
+                                      <summary className="text-[9px] text-muted font-mono uppercase tracking-wider select-none hover:text-ink">
+                                        View/Edit Other Vendor Allocations
+                                      </summary>
+                                      <div className="space-y-1.5 mt-2 pl-2 border-l border-line/45">
+                                        {companies.filter(co => co.name !== selectedAdminVendor).map((co) => {
+                                          const curAlloc = editingCompanyAllocations[co.name] ?? 0;
+                                          return (
+                                            <div key={co.id} className="flex items-center gap-2">
+                                              <span className="text-[10px] text-muted w-28 truncate">{co.name}</span>
+                                              <input
+                                                type="number"
+                                                min={0}
+                                                value={curAlloc}
+                                                onChange={(e) => {
+                                                  const val = Number(e.target.value);
+                                                  setEditingCompanyAllocations((prev) => ({
+                                                    ...prev,
+                                                    [co.name]: val,
+                                                  }));
+                                                }}
+                                                className="w-16 bg-paper border border-line px-1 py-0.5 text-[11px] outline-none rounded font-mono focus:border-accent text-ink text-right"
+                                              />
+                                              <span className="text-[9px] text-muted">slots</span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </details>
+
+                                    <div className="text-[10px] font-mono text-muted/80 pt-1 border-t border-line/20">
+                                      Combined Quota Limit: <span className="font-bold text-ink">{(Object.values(editingCompanyAllocations) as number[]).reduce((a, b) => a + b, 0)} slots</span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col gap-1 py-1">
+                                    {/* Limits block statistics */}
+                                    <div className="flex items-center justify-between gap-1 text-[11px]">
+                                      <span className="font-mono text-ink font-semibold">
+                                        {limit} slots allotted
+                                      </span>
+                                      <span className={`font-mono text-[10px] font-bold ${
+                                        isLocked ? "text-bad" : "text-success-green"
+                                      }`}>
+                                        {rem} remaining open
+                                      </span>
+                                    </div>
+
+                                    {/* Live occupancy progress bar */}
+                                    <div className="w-full bg-paper rounded-full h-2 overflow-hidden border border-line/40">
+                                      <div 
+                                        className={`h-full rounded-full transition-all duration-300 ${
+                                          isLocked ? "bg-bad/70 animate-pulse" : "bg-accent"
+                                        }`}
+                                        style={{ width: `${Math.min(100, percent)}%` }}
+                                      ></div>
+                                    </div>
+
+                                    <div className="text-[9px] text-muted font-mono flex justify-between">
+                                      <span>Occupied capacity: {activeCount} slots used</span>
+                                      <span>({percent.toFixed(0)}%)</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </td>
+
+                              {/* Actions Column */}
+                              <td className="p-3 text-right pr-4 w-44 whitespace-nowrap">
+                                {isEditing ? (
+                                  <div className="inline-flex items-center gap-1.5 justify-end">
+                                    <button
+                                      onClick={() => handleSaveCategoryEdit(c.id)}
+                                      className="p-1 px-2.5 bg-green-500/10 hover:bg-green-500/20 text-green-600 rounded border border-green-500/25 text-[10px] font-mono font-bold inline-flex items-center gap-1 transition-all cursor-pointer"
+                                      title="Save Changes"
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                      <span>Save</span>
+                                    </button>
+                                    <button
+                                      onClick={() => setEditingCatId(null)}
+                                      className="p-1 px-2 bg-paper border border-line text-muted hover:text-ink hover:bg-paper/85 rounded text-[10px] font-mono inline-flex items-center gap-1 transition-all cursor-pointer"
+                                      title="Cancel"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                      <span>Cancel</span>
+                                    </button>
+                                  </div>
+                                ) : isConfirmingDelete ? (
+                                  <div className="inline-flex items-center gap-1.5 justify-end">
+                                    <span className="text-[9px] text-[#A30000] font-mono font-bold animate-pulse">Confirm Delete?</span>
+                                    <button
+                                      onClick={() => {
+                                        handleDeleteCategory(c.id, c.name);
+                                        setConfirmDeleteCatId(null);
+                                      }}
+                                      className="px-2 py-0.5 text-[9px] font-bold text-white bg-bad hover:bg-bad/90 rounded border border-bad transition-all cursor-pointer"
+                                    >
+                                      Yes
+                                    </button>
+                                    <button
+                                      onClick={() => setConfirmDeleteCatId(null)}
+                                      className="px-2 py-0.5 text-[9px] font-medium text-ink bg-paper border border-line hover:bg-paper/85 rounded transition-all cursor-pointer"
+                                    >
+                                      No
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="inline-flex items-center gap-1.5 justify-end w-full">
+                                    <button
+                                      onClick={() => {
+                                        setEditingCatId(c.id);
+                                        setEditingCatName(c.name);
+                                        setEditingCatQuota(c.max_quota);
+                                        // Load current company allocations or set default 0
+                                        const prepAllocations: Record<string, number> = {};
+                                        companies.forEach((co) => {
+                                          prepAllocations[co.name] = c.company_allocations?.[co.name] ?? 0;
+                                        });
+                                        setEditingCompanyAllocations(prepAllocations);
+                                        setConfirmDeleteCatId(null);
+                                      }}
+                                      className="text-muted hover:text-accent p-1.5 rounded-lg hover:bg-paper/40 transition-colors cursor-pointer inline-flex items-center gap-1"
+                                      title="Edit Allocations & Name"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                      <span className="text-[10px]">Edit</span>
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setConfirmDeleteCatId(c.id);
+                                        setEditingCatId(null);
+                                      }}
+                                      className="text-muted hover:text-bad p-1.5 rounded-lg hover:bg-paper/45 transition-colors cursor-pointer inline-flex items-center gap-1"
+                                      title="Delete Category"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      <span className="text-[10px]">Delete</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
 
-              <form onSubmit={handleAddCategory} className="space-y-3.5">
+              {/* Right category registration adder */}
+              <div className="lg:col-span-4 bg-card border border-line rounded-xl p-5 shadow-sm space-y-4 h-fit font-sans">
                 <div>
-                  <label className="block text-[10px] uppercase font-mono text-muted mb-1">Name</label>
-                  <input
-                    type="text"
-                    value={newCatName}
-                    onChange={(e) => setNewCatName(e.target.value)}
-                    placeholder="e.g. Hospitality Specialists"
-                    className="w-full bg-paper/20 border border-line focus:border-accent rounded px-2.5 py-1.5 text-xs outline-none"
-                    required
-                  />
+                  <h3 className="text-sm font-semibold text-ink font-display" id="register-category-title">Register New Cohort Category</h3>
+                  <p className="text-xs text-muted">Create a unique job category and distribute allotments among supply vendors.</p>
                 </div>
-                <div>
-                  <label className="block text-[10px] uppercase font-mono text-muted mb-1">Max Quota Cap</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={newCatQuota}
-                    onChange={(e) => setNewCatQuota(Number(e.target.value))}
-                    className="w-full bg-paper/20 border border-line focus:border-accent rounded px-2.5 py-1.5 text-xs outline-none font-mono"
-                    required
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full py-2 bg-accent hover:bg-accent/90 text-white rounded-lg text-xs font-mono uppercase tracking-wider cursor-pointer"
-                >
-                  Create Category
-                </button>
-              </form>
+
+                <form onSubmit={handleAddCategory} className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] uppercase font-mono text-muted mb-1">Category Name</label>
+                    <input
+                      type="text"
+                      value={newCatName}
+                      onChange={(e) => setNewCatName(e.target.value)}
+                      placeholder="e.g. Hospitality Specialists"
+                      className="w-full bg-paper/20 border border-line focus:border-accent rounded px-2.5 py-1.5 text-xs outline-none text-ink font-semibold"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2 border border-line/50 rounded-lg p-3 bg-paper/10">
+                    <label className="block text-[10px] uppercase font-mono text-muted border-b border-line/20 pb-1 font-bold">Supply Vendor Allocations</label>
+                    {companies.map((co) => {
+                      const val = newCompanyAllocations[co.name] ?? 10;
+                      return (
+                        <div key={co.id} className="flex items-center justify-between gap-2 py-0.5 border-b border-line/30 last:border-0 last:pb-0">
+                          <span className="text-xs font-semibold text-ink truncate w-32">{co.name}</span>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min={0}
+                              value={val}
+                              onChange={(e) => {
+                                const num = Number(e.target.value);
+                                setNewCompanyAllocations((prev) => ({
+                                  ...prev,
+                                  [co.name]: num,
+                                }));
+                              }}
+                              className="w-20 bg-paper border border-line focus:border-accent rounded px-2 py-0.5 text-xs text-ink font-mono text-right font-bold"
+                              required
+                            />
+                            <span className="text-[10px] text-muted w-8 text-left">slots</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div className="text-[10px] text-muted text-right font-mono mt-1 pt-1 border-t border-line/10">
+                      Total Allocation Limit: <span className="font-bold text-accent">{(Object.values(newCompanyAllocations) as number[]).reduce((a, b) => a + b, 0)} slots</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-2 bg-accent hover:bg-accent/90 text-white rounded-lg text-xs font-mono uppercase tracking-wider cursor-pointer font-bold"
+                  >
+                    Create Category & Allocations
+                  </button>
+                </form>
+              </div>
             </div>
           </div>
         )}
@@ -875,26 +1345,105 @@ export default function AdminPanel({
                   <thead className="bg-paper text-muted font-mono text-[9px] uppercase">
                     <tr>
                       <th className="p-3 pl-4">Company Legal Designation Name</th>
-                      <th className="p-3 w-20 text-center">Action</th>
+                      <th className="p-3 w-48 text-right pr-6">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line/45">
-                    {companies.map((co) => (
-                      <tr key={co.id} className="hover:bg-paper/10">
-                        <td className="p-3 font-semibold text-ink font-display flex items-center gap-2">
-                          <Building2 className="w-4 h-4 text-muted shrink-0" />
-                          <span>{co.name}</span>
-                        </td>
-                        <td className="p-2 text-center">
-                          <button
-                            onClick={() => handleDeleteCompany(co.id, co.name)}
-                            className="text-muted hover:text-bad p-1 rounded hover:bg-neutral-50 cursor-pointer"
-                          >
-                            <Trash2 className="w-4 h-4 mx-auto" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {companies.map((co) => {
+                      const isEditing = editingCompanyId === co.id;
+                      const isConfirmingDelete = confirmDeleteCompanyId === co.id;
+
+                      return (
+                        <tr key={co.id} className="hover:bg-paper/10 transition-colors">
+                          <td className="p-3 font-semibold text-ink font-display">
+                            {isEditing ? (
+                              <div className="flex items-center gap-2 max-w-sm">
+                                <Building2 className="w-4 h-4 text-accent shrink-0" />
+                                <input
+                                  type="text"
+                                  value={editingCompanyName}
+                                  onChange={(e) => setEditingCompanyName(e.target.value)}
+                                  className="w-full bg-paper border border-line focus:border-accent rounded px-2.5 py-1 text-xs outline-none text-ink font-semibold"
+                                  placeholder="Company Name"
+                                />
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <Building2 className="w-4 h-4 text-muted shrink-0" />
+                                <span>{co.name}</span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-2 text-right pr-4 w-48 whitespace-nowrap">
+                            {isEditing ? (
+                              <div className="inline-flex items-center gap-1.5 justify-end">
+                                <button
+                                  onClick={() => handleSaveCompanyEdit(co.id)}
+                                  className="p-1 px-2.5 bg-green-500/10 hover:bg-green-500/20 text-green-600 rounded border border-green-500/25 text-[10px] font-mono font-bold inline-flex items-center gap-1 transition-all cursor-pointer"
+                                  title="Save Changes"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>Save</span>
+                                </button>
+                                <button
+                                  onClick={() => setEditingCompanyId(null)}
+                                  className="p-1 px-2 bg-paper border border-line text-muted hover:text-ink hover:bg-paper/85 rounded text-[10px] font-mono inline-flex items-center gap-1 transition-all cursor-pointer"
+                                  title="Cancel"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                  <span>Cancel</span>
+                                </button>
+                              </div>
+                            ) : isConfirmingDelete ? (
+                              <div className="inline-flex items-center gap-1.5 justify-end">
+                                <span className="text-[9px] text-[#A30000] font-mono font-bold animate-pulse">Confirm Delete?</span>
+                                <button
+                                  onClick={() => {
+                                    handleDeleteCompany(co.id, co.name);
+                                    setConfirmDeleteCompanyId(null);
+                                  }}
+                                  className="px-2 py-0.5 text-[9px] font-bold text-white bg-bad hover:bg-bad/90 rounded border border-bad transition-all cursor-pointer"
+                                >
+                                  Yes
+                                </button>
+                                <button
+                                  onClick={() => setConfirmDeleteCompanyId(null)}
+                                  className="px-2 py-0.5 text-[9px] font-medium text-ink bg-paper border border-line hover:bg-paper/85 rounded transition-all cursor-pointer"
+                                >
+                                  No
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="inline-flex items-center gap-1.5 justify-end">
+                                <button
+                                  onClick={() => {
+                                    setEditingCompanyId(co.id);
+                                    setEditingCompanyName(co.name);
+                                    setConfirmDeleteCompanyId(null);
+                                  }}
+                                  className="text-muted hover:text-accent p-1.5 rounded-lg hover:bg-paper/40 transition-colors cursor-pointer inline-flex items-center gap-1"
+                                  title="Edit Vendor Name"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                  <span className="text-[10px]">Edit</span>
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setConfirmDeleteCompanyId(co.id);
+                                    setEditingCompanyId(null);
+                                  }}
+                                  className="text-muted hover:text-bad p-1.5 rounded-lg hover:bg-paper/45 transition-colors cursor-pointer inline-flex items-center gap-1"
+                                  title="Delete Vendor Agency"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span className="text-[10px]">Delete</span>
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1102,14 +1651,37 @@ export default function AdminPanel({
                             </div>
                           )}
                         </td>
-                        <td className="p-2 text-center">
-                          <button
-                            onClick={() => handleDeleteUserAccount(u.username)}
-                            disabled={u.username === "admin"}
-                            className="text-muted hover:text-bad p-1 rounded hover:bg-neutral-50 disabled:opacity-30 cursor-pointer"
-                          >
-                            <Trash2 className="w-4 h-4 mx-auto" />
-                          </button>
+                        <td className="p-2 text-right pr-4 whitespace-nowrap">
+                          {u.username === "admin" ? (
+                            <span className="text-[10px] text-muted italic pr-2">System Reserved</span>
+                          ) : confirmDeleteUsername === u.username ? (
+                            <div className="inline-flex items-center gap-1.5 justify-end">
+                              <span className="text-[9px] text-[#A30000] font-mono font-bold animate-pulse">Confirm?</span>
+                              <button
+                                onClick={async () => {
+                                  await handleDeleteUserAccount(u.username);
+                                  setConfirmDeleteUsername(null);
+                                }}
+                                className="px-2 py-0.5 text-[9px] font-bold text-white bg-bad hover:bg-bad/90 rounded border border-bad transition-all cursor-pointer"
+                              >
+                                Yes
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteUsername(null)}
+                                className="px-2 py-0.5 text-[9px] font-medium text-ink bg-paper border border-line hover:bg-paper/85 rounded transition-all cursor-pointer"
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDeleteUsername(u.username)}
+                              className="text-muted hover:text-bad p-1.5 rounded hover:bg-paper/45 transition-colors cursor-pointer"
+                              title={`Delete account @${u.username}`}
+                            >
+                              <Trash2 className="w-4 h-4 mx-auto" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}

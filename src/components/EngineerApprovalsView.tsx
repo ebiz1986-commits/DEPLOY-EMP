@@ -10,7 +10,9 @@ import {
   ChevronRight,
   TrendingDown,
   Layers,
-  Search
+  Search,
+  XCircle,
+  Pause
 } from "lucide-react";
 
 interface EngineerApprovalsViewProps {
@@ -23,6 +25,8 @@ interface EngineerApprovalsViewProps {
   projectDetail?: ProjectDetail | null;
   onRefresh: () => void;
   onApproveWorker: (id: string, sendingBatch: string) => Promise<{ success: boolean; message?: string }>;
+  onHoldWorker: (id: string) => Promise<{ success: boolean; message?: string }>;
+  onRejectWorker: (id: string) => Promise<{ success: boolean; message?: string }>;
 }
 
 export default function EngineerApprovalsView({
@@ -34,7 +38,9 @@ export default function EngineerApprovalsView({
   selectedProjectId = "",
   projectDetail,
   onRefresh,
-  onApproveWorker
+  onApproveWorker,
+  onHoldWorker,
+  onRejectWorker
 }: EngineerApprovalsViewProps) {
   
   const [searchQuery, setSearchQuery] = useState("");
@@ -81,11 +87,25 @@ export default function EngineerApprovalsView({
     return map;
   }, [categoryStates]);
 
-  // Pending worker list (state = 'pending' only!)
+  // Map category_company combo to its current vacancy remaining for that specific supplier
+  const companyCategoryVacancyMap = useMemo(() => {
+    const map: { [comboKey: string]: number } = {};
+    categories.forEach((cat) => {
+      companies.forEach((co) => {
+        const comboKey = `${cat.name}_${co.name}`;
+        const limit = cat.company_allocations?.[co.name] ?? 0;
+        const activeCount = scopedWorkers.filter((w) => w.category === cat.name && w.supply_company === co.name && w.state === "active").length;
+        map[comboKey] = Math.max(0, limit - activeCount);
+      });
+    });
+    return map;
+  }, [categories, companies, scopedWorkers]);
+
+  // Pending worker list (state = 'pending' or 'held'!)
   const pendingWorkers = useMemo(() => {
     return scopedWorkers.filter((w) => {
-      // Must be pending state
-      if (w.state !== "pending") return false;
+      // Must be pending or held state
+      if (w.state !== "pending" && w.state !== "held") return false;
 
       // Filter by supply company
       if (selectedCompany !== "All" && w.supply_company !== selectedCompany) {
@@ -113,10 +133,23 @@ export default function EngineerApprovalsView({
       return;
     }
 
-    // Double check local vacancy counter
+    const workerObj = scopedWorkers.find(w => w.id === workerId);
+    if (!workerObj) return;
+
+    const companyName = workerObj.supply_company || "KSJ";
+    const comboKey = `${categoryName}_${companyName}`;
+    const companyVacancy = companyCategoryVacancyMap[comboKey] ?? 0;
+
+    // Double check local vacancy counter for the specific supply company
+    if (companyVacancy <= 0) {
+      setMessage({ text: `Gate Locked: Vendor "${companyName}" allocation already reached for category "${categoryName}".`, type: "error" });
+      return;
+    }
+
+    // Double check global vacancy counter
     const remaining = categoryVacanyMap[categoryName] ?? 0;
     if (remaining <= 0) {
-      setMessage({ text: `Gate Locked: Maximum quota already reached for category "${categoryName}".`, type: "error" });
+      setMessage({ text: `Gate Locked: Maximum allocation already reached for category "${categoryName}".`, type: "error" });
       return;
     }
 
@@ -139,6 +172,40 @@ export default function EngineerApprovalsView({
     }
   };
 
+  const handleHold = async (workerId: string) => {
+    setMessage(null);
+    setProcessingId(workerId);
+    try {
+      const res = await onHoldWorker(workerId);
+      if (res.success) {
+        setMessage({ text: `Worker successfully placed on HOLD and related supply agency was notified!`, type: "success" });
+      } else {
+        setMessage({ text: res.message || "Failed to place on hold.", type: "error" });
+      }
+    } catch (err) {
+      setMessage({ text: "Database connection timed out during execution.", type: "error" });
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleReject = async (workerId: string) => {
+    setMessage(null);
+    setProcessingId(workerId);
+    try {
+      const res = await onRejectWorker(workerId);
+      if (res.success) {
+        setMessage({ text: `Worker successfully REJECTED and notified to their supply agency.`, type: "success" });
+      } else {
+        setMessage({ text: res.message || "Failed to reject worker.", type: "error" });
+      }
+    } catch (err) {
+      setMessage({ text: "Database connection timed out during execution.", type: "error" });
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   return (
     <div id="engineer-viewport" className="flex-1 overflow-y-auto p-6 space-y-6 max-h-screen">
       
@@ -149,7 +216,7 @@ export default function EngineerApprovalsView({
             Engineering Approval Gate
           </span>
           <h2 className="text-xl font-serif tracking-tight mt-1">Visa Processing Authorization Desk</h2>
-          <p className="text-xs text-stone-400">Validate pending worker records against active category quotas.</p>
+          <p className="text-xs text-stone-400">Validate pending worker records against active category allocations.</p>
         </div>
         
         <button
@@ -192,45 +259,7 @@ export default function EngineerApprovalsView({
         </div>
       )}
 
-      {/* Big Quotas Countdown Grid widget */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-        {categoryStates.map((cq) => {
-          const isLacking = cq.remaining <= 0;
-          return (
-            <div key={cq.id} className={`bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between transition-all ${
-              isLacking ? "border-bad bg-red-50/10" : "border-line"
-            }`}>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-sans font-semibold text-ink truncate mr-2">{cq.name}</span>
-                {isLacking ? (
-                  <Lock className="w-3.5 h-3.5 text-bad shrink-0" />
-                ) : (
-                  <Unlock className="w-3.5 h-3.5 text-success-green shrink-0" />
-                )}
-              </div>
-              
-              <div className="mt-3.5 flex items-baseline gap-2">
-                <span className={`text-2xl font-mono font-bold ${isLacking ? "text-bad" : "text-ink"}`}>
-                  {cq.remaining}
-                </span>
-                <span className="text-[10px] text-muted uppercase font-mono">slots left</span>
-              </div>
 
-              {/* Progress visualizer */}
-              <div className="w-full bg-paper rounded-full h-1.5 overflow-hidden mt-3 border border-line/30">
-                <div 
-                  className={`h-full rounded-full ${isLacking ? "bg-bad animate-pulse" : "bg-accent"}`}
-                  style={{ width: `${Math.min(100, cq.percent)}%` }}
-                ></div>
-              </div>
-              
-              <p className="text-[9px] text-muted mt-2 font-mono">
-                Allocated Max quota: {cq.max_quota}
-              </p>
-            </div>
-          );
-        })}
-      </div>
 
       {/* Main Table segment */}
       <div className="bg-card border border-line rounded-xl shadow-sm overflow-hidden">
@@ -280,7 +309,7 @@ export default function EngineerApprovalsView({
                 <th className="p-3">Associated Supply Agency</th>
                 <th className="p-3">Active Vacancy Counter</th>
                 <th className="p-3">Sending Batch Declaration</th>
-                <th className="p-3 pr-5 text-right w-36">Approval Auth</th>
+                <th className="p-3 pr-5 text-right w-80">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line/40">
@@ -300,11 +329,19 @@ export default function EngineerApprovalsView({
                   const isLocked = categoryVacancy <= 0;
 
                   return (
-                    <tr key={w.id} className="hover:bg-paper/10 transition-colors">
+                    <tr key={w.id} className={`transition-colors hover:bg-paper/10 ${w.state === "held" ? "bg-amber-500/[0.04]" : ""}`}>
                       
                       {/* Name */}
                       <td className="p-3 pl-5 font-semibold text-ink font-display">
-                        {w.name}
+                        <div className="flex items-center gap-2">
+                          <span>{w.name}</span>
+                          {w.state === "held" && (
+                            <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-700 border border-amber-500/20 text-[9px] font-mono font-bold rounded flex items-center gap-0.5">
+                              <Pause className="w-2.5 h-2.5" />
+                              ON HOLD
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Passport */}
@@ -326,16 +363,32 @@ export default function EngineerApprovalsView({
 
                       {/* Active Vacancy Counter */}
                       <td className="p-3 font-mono">
-                        {isLocked ? (
-                          <span className="text-bad font-semibold flex items-center gap-1">
-                            <Lock className="w-3 h-3" />
-                            Quota Exhausted
-                          </span>
-                        ) : (
-                          <span className="text-success-green font-semibold">
-                            {categoryVacancy} slots open
-                          </span>
-                        )}
+                        {(() => {
+                          const comboKey = `${w.category}_${w.supply_company}`;
+                          const companyVacancy = companyCategoryVacancyMap[comboKey] ?? 0;
+                          const isLockedForCompany = companyVacancy <= 0;
+                          const isLockedGlobally = categoryVacancy <= 0;
+
+                          if (isLockedForCompany || isLockedGlobally) {
+                            return (
+                              <span className="text-bad font-semibold flex items-center gap-1 text-[11px]">
+                                <Lock className="w-3" />
+                                {isLockedForCompany ? `${w.supply_company} Limit Reached` : "Category Maxed"}
+                              </span>
+                            );
+                          }
+
+                          return (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-success-green font-semibold text-[11px] leading-tight font-display">
+                                {companyVacancy} vendor slots open
+                              </span>
+                              <span className="text-[9px] text-muted-more font-mono">
+                                ({categoryVacancy} global limit)
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Batch selector */}
@@ -360,33 +413,65 @@ export default function EngineerApprovalsView({
                       </td>
 
                       {/* Action Trigger */}
-                      <td className="p-2 pr-5 text-right">
-                        <button
-                          id={`approve-btn-${w.id}`}
-                          onClick={() => handleApprove(w.id, w.category)}
-                          disabled={isLocked || processingId === w.id}
-                          className={`w-full px-3 py-1.5 rounded-lg text-[10px] font-mono tracking-wider uppercase inline-flex items-center justify-center gap-1.5 transition-all text-white border ${
-                            isLocked 
-                              ? "bg-stone-200 text-stone-400 border-stone-200 cursor-not-allowed" 
-                              : processingId === w.id
-                              ? "bg-muted text-[#FDFBF6] border-muted cursor-wait"
-                              : "bg-accent hover:bg-accent/90 border-accent cursor-pointer"
-                          }`}
-                        >
-                          {isLocked ? (
-                            <>
-                              <Lock className="w-3 h-3" />
-                              <span>LOCKED</span>
-                            </>
-                          ) : processingId === w.id ? (
-                            <span>Auth...</span>
-                          ) : (
-                            <>
-                              <ShieldCheck className="w-3.5 h-3.5" />
-                              <span>Authorize</span>
-                            </>
-                          )}
-                        </button>
+                      <td className="p-2 pr-5 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* Hold triggers */}
+                          <button
+                            id={`hold-btn-${w.id}`}
+                            onClick={() => handleHold(w.id)}
+                            disabled={processingId === w.id}
+                            title="Place candidate on HOLD status. This lets recruiters know additional checks are active."
+                            className={`px-2.5 py-1 text-[10px] font-mono uppercase inline-flex items-center justify-center gap-1 transition-all border rounded ${
+                              w.state === "held"
+                                ? "bg-amber-500 text-white border-amber-500 font-bold"
+                                : "bg-paper hover:bg-amber-50 text-amber-600 border-amber-500/30 hover:border-amber-500 cursor-pointer"
+                            }`}
+                          >
+                            <Pause className="w-3 h-3" />
+                            <span>{w.state === "held" ? "On Hold" : "Hold"}</span>
+                          </button>
+
+                          {/* Reject triggers */}
+                          <button
+                            id={`reject-btn-${w.id}`}
+                            onClick={() => handleReject(w.id)}
+                            disabled={processingId === w.id}
+                            title="Reject candidate. This will remove them from queue and notify the supply agency."
+                            className="px-2.5 py-1 text-[10px] font-mono uppercase inline-flex items-center justify-center gap-1 transition-all border rounded bg-paper hover:bg-red-50 text-bad border-bad/30 hover:border-bad cursor-pointer"
+                          >
+                            <XCircle className="w-3 h-3" />
+                            <span>Reject</span>
+                          </button>
+
+                          {/* Approve triggers */}
+                          <button
+                            id={`approve-btn-${w.id}`}
+                            onClick={() => handleApprove(w.id, w.category)}
+                            disabled={isLocked || processingId === w.id}
+                            title="Authorize worker deployment to active project pipeline."
+                            className={`px-3 py-1 rounded text-[10px] font-mono tracking-wider uppercase inline-flex items-center justify-center gap-1.5 transition-all text-white border ${
+                              isLocked 
+                                ? "bg-stone-200 text-stone-400 border-stone-200 cursor-not-allowed" 
+                                : processingId === w.id
+                                ? "bg-muted text-[#FDFBF6] border-muted cursor-wait"
+                                : "bg-accent hover:bg-accent/90 border-accent cursor-pointer"
+                            }`}
+                          >
+                            {isLocked ? (
+                              <>
+                                <Lock className="w-3 h-3" />
+                                <span>LOCKED</span>
+                              </>
+                            ) : processingId === w.id ? (
+                              <span>Auth...</span>
+                            ) : (
+                              <>
+                                <ShieldCheck className="w-3.5 h-3.5" />
+                                <span>Authorize</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </td>
 
                     </tr>
