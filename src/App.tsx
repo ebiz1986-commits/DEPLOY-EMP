@@ -337,10 +337,14 @@ export default function App() {
     }
   };
 
-  const handleRejectWorker = async (id: string) => {
+  const handleRejectWorker = async (id: string, reason?: string) => {
     try {
       const res = await fetch(`/api/workers/${id}/reject-gate`, {
-        method: "PUT"
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ reason })
       });
       const data = await res.json();
       if (res.ok && data.success) {

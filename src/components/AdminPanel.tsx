@@ -20,8 +20,18 @@ import {
   Unlock,
   ChevronRight,
   TrendingUp,
-  BarChart2
+  BarChart2,
+  Cloud,
+  RefreshCw,
+  ExternalLink
 } from "lucide-react";
+import { User as FirebaseUser } from "firebase/auth";
+import {
+  initAuth,
+  googleSignIn,
+  logout as googleLogout,
+  uploadOrUpdateMasterFile
+} from "../gdrive";
 import { 
   BarChart, 
   Bar, 
@@ -77,9 +87,71 @@ export default function AdminPanel({
 }: AdminPanelProps) {
   
   // Navigation internal to Admin Settings panel
-  const [activeSubTab, setActiveSubTab] = useState<"project" | "quotas" | "companies" | "dropdowns" | "users">("project");
+  const [activeSubTab, setActiveSubTab] = useState<"project" | "quotas" | "companies" | "dropdowns" | "users" | "gdrive">("project");
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+
+  // States for Google Drive Backup Integrations
+  const [gdriveUser, setGdriveUser] = useState<FirebaseUser | null>(null);
+  const [gdriveToken, setGdriveToken] = useState<string | null>(null);
+  const [isGdriveSyncing, setIsGdriveSyncing] = useState(false);
+  const [lastGdriveSync, setLastGdriveSync] = useState<string | null>(() => {
+    return localStorage.getItem("sanken_last_gdrive_sync");
+  });
+  const [gdriveAutoSync, setGdriveAutoSync] = useState(() => {
+    const stored = localStorage.getItem("sanken_gdrive_auto_sync");
+    return stored === null ? true : stored === "true";
+  });
+  const [gdriveSyncStatus, setGdriveSyncStatus] = useState<"idle" | "success" | "error" | "syncing">("idle");
+  const [gdriveError, setGdriveError] = useState<string | null>(null);
+
+  // Google Drive Authentication Listener
+  React.useEffect(() => {
+    const unsubscribe = initAuth(
+      (user, token) => {
+        setGdriveUser(user);
+        setGdriveToken(token);
+        setGdriveSyncStatus("idle");
+      },
+      () => {
+        setGdriveUser(null);
+        setGdriveToken(null);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  // Sync state back to localStorage to persist preferences
+  React.useEffect(() => {
+    localStorage.setItem("sanken_gdrive_auto_sync", String(gdriveAutoSync));
+  }, [gdriveAutoSync]);
+
+  // Persist last sync timestamp
+  React.useEffect(() => {
+    if (lastGdriveSync) {
+      localStorage.setItem("sanken_last_gdrive_sync", lastGdriveSync);
+    }
+  }, [lastGdriveSync]);
+
+  // Auto-backup to Drive in background when database changes
+  React.useEffect(() => {
+    if (!gdriveUser || !gdriveToken || !gdriveAutoSync || workers.length === 0) return;
+
+    const delayDebounce = setTimeout(async () => {
+      setGdriveSyncStatus("syncing");
+      const res = await uploadOrUpdateMasterFile(workers, gdriveToken);
+      if (res.success) {
+        setLastGdriveSync(new Date().toLocaleString());
+        setGdriveSyncStatus("success");
+        setGdriveError(null);
+      } else {
+        setGdriveSyncStatus("error");
+        setGdriveError(res.error || "Background backup failed");
+      }
+    }, 5000); // 5 seconds wait after any DB edits before backing up silently
+
+    return () => clearTimeout(delayDebounce);
+  }, [workers, gdriveUser, gdriveToken, gdriveAutoSync]);
 
   // States for Project Management
   const [projName, setProjName] = useState(projectDetail?.name || "");
@@ -599,6 +671,18 @@ export default function AdminPanel({
         >
           <Users2 className="w-3.5 h-3.5 inline mr-1" />
           Credentials Manager
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab("gdrive")}
+          className={`px-4 py-2 text-xs font-mono uppercase tracking-wider border-b-2 font-semibold whitespace-nowrap cursor-pointer transition-colors ${
+            activeSubTab === "gdrive"
+              ? "border-accent text-accent"
+              : "border-transparent text-muted hover:text-ink"
+          }`}
+        >
+          <Cloud className="w-3.5 h-3.5 inline mr-1 text-emerald-500 animate-pulse" />
+          Google Drive Backup
         </button>
 
       </div>
@@ -1827,6 +1911,276 @@ export default function AdminPanel({
                   Provision Credentials
                 </button>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* SUB 5: GOOGLE DRIVE BACKUPS PANEL */}
+        {activeSubTab === "gdrive" && (
+          <div className="bg-card border border-line rounded-xl p-6 shadow-sm space-y-6 animate-fade-in font-sans">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-line/60">
+              <div>
+                <h3 className="text-sm font-semibold text-ink font-display flex items-center gap-2">
+                  <Cloud className="w-5 h-5 text-accent" />
+                  <span>Google Drive Automated Backup Archive</span>
+                </h3>
+                <p className="text-xs text-muted">
+                  Configure the Sanken Overseas Combined Master Records spreadsheet sync with Google Drive.
+                </p>
+              </div>
+
+              {gdriveUser && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await googleLogout();
+                    setGdriveUser(null);
+                    setGdriveToken(null);
+                    setGdriveSyncStatus("idle");
+                  }}
+                  className="px-3 py-1.5 text-xs font-mono font-bold text-red-650 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg cursor-pointer transition-all self-start sm:self-center"
+                >
+                  Disconnect Account
+                </button>
+              )}
+            </div>
+
+            {/* Error Notification Banner */}
+            {gdriveError && (
+              <div className="p-4 bg-red-50 text-bad border border-red-250/20 rounded-xl text-xs flex gap-3 items-center animate-fade-in font-sans">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <div className="flex-1">
+                  <p className="font-bold">Sync Error Occurred</p>
+                  <p className="opacity-90 text-[11px]">{gdriveError}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setGdriveError(null)}
+                  className="text-stone-400 hover:text-stone-600 font-mono text-[10px] font-bold cursor-pointer"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              
+              {/* Left Column: Account binding & connection controller */}
+              <div className="lg:col-span-5 space-y-4">
+                <div className="bg-paper p-5 border border-line rounded-xl space-y-4">
+                  <h4 className="text-[10px] uppercase font-bold text-stone-450 tracking-wider">
+                    Google Authorization Status
+                  </h4>
+
+                  {!gdriveUser ? (
+                    <div className="space-y-4 pt-1">
+                      <p className="text-xs text-stone-600 leading-relaxed">
+                        Authorize this applet to save and update the <strong>Combined Master Records Archive</strong> Excel workbook automatically inside the storage of your designated corporate Google Account.
+                      </p>
+
+                      {/* Google Style authenticate button */}
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            setGdriveError(null);
+                            const res = await googleSignIn();
+                            if (res) {
+                              setGdriveUser(res.user);
+                              setGdriveToken(res.accessToken);
+                              showSuccess("Google Account successfully authorized for backup storage!");
+                            }
+                          } catch (err: any) {
+                            setGdriveError(err?.message || "User aborted authorization or popup blocked.");
+                          }
+                        }}
+                        className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-stone-300 hover:border-stone-400 focus:outline-none bg-white hover:bg-stone-50 active:bg-stone-100 text-stone-700 rounded-xl cursor-pointer transition-all shadow-sm"
+                      >
+                        <svg className="w-5 h-5 shrink-0" viewBox="0 0 48 48">
+                          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
+                          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
+                          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
+                          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
+                        </svg>
+                        <span className="text-xs font-mono font-bold tracking-tight uppercase">Bind System Google Drive</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Active Authenticated Status card */}
+                      <div className="flex items-center gap-3 bg-card p-3 rounded-xl border border-line/50">
+                        {gdriveUser.photoURL ? (
+                          <img
+                            src={gdriveUser.photoURL}
+                            alt="Avatar"
+                            referrerPolicy="no-referrer"
+                            className="w-10 h-10 rounded-full border border-stone-250 shadow-sm shrink-0"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-accent/15 border border-accent/30 text-accent flex items-center justify-center font-mono font-bold uppercase shrink-0">
+                            {gdriveUser.displayName?.charAt(0) || gdriveUser.email?.charAt(0) || "G"}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-xs text-ink truncate font-display">
+                            {gdriveUser.displayName || "Google Operator"}
+                          </p>
+                          <p className="text-[10px] text-muted truncate">
+                            {gdriveUser.email}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 pt-1 text-xs">
+                        <div className="flex justify-between items-center">
+                          <span className="text-stone-500">Auto background save:</span>
+                          <span className="font-bold text-success-green flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 bg-success-green rounded-full animate-ping"></span>
+                            ACTIVE
+                          </span>
+                        </div>
+
+                        {/* Interactive toggle logic */}
+                        <div className="flex items-center justify-between border-t border-line/40 pt-3">
+                          <label htmlFor="chk-auto-sync" className="text-stone-700 font-semibold cursor-pointer select-none">
+                            Immediate Sync on database edits
+                          </label>
+                          <input
+                            type="checkbox"
+                            id="chk-auto-sync"
+                            checked={gdriveAutoSync}
+                            onChange={(e) => setGdriveAutoSync(e.target.checked)}
+                            className="rounded border-line text-accent h-4 w-4 focus:ring-accent cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-stone-50/50 p-4 rounded-xl border border-dashed border-stone-200 text-[11px] leading-relaxed text-stone-500">
+                  <p className="font-semibold text-stone-600 mb-1">💡 Administrative Policy Note:</p>
+                  To secure candidate information records against machine crashes, backups are safely performed entirely in the client-side context directly under the corporate API quota restrictions of the authenticated administrator. No credentials or files are stored outside your Google Cloud ecosystem directory.
+                </div>
+              </div>
+
+              {/* Right Column: Spreadsheet sync dashboard and logs */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="bg-paper p-5 border border-line rounded-xl space-y-4">
+                  <h4 className="text-[10px] uppercase font-bold text-stone-450 tracking-wider">
+                    Combined Master Excel Settings
+                  </h4>
+
+                  <div className="space-y-3.5">
+                    <div className="grid grid-cols-3 gap-2 py-1.5 border-b border-line/40 text-xs">
+                      <span className="text-stone-400">File Name:</span>
+                      <span className="col-span-2 font-mono font-semibold text-ink text-right truncate">
+                        Combined_Master_Records_Archive.xlsx
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 py-1.5 border-b border-line/40 text-xs">
+                      <span className="text-stone-400">Target Drive Scope:</span>
+                      <span className="col-span-2 font-mono text-[10px] text-muted text-right truncate" title="Application specific file creation authority">
+                        drive.file (App created documents)
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 py-1.5 border-b border-line/40 text-xs">
+                      <span className="text-stone-400">Target File Action:</span>
+                      <span className="col-span-2 font-bold text-accent text-right">
+                        Automatic Overwrite / Version Replace
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 py-1.5 border-b border-line/40 text-xs">
+                      <span className="text-stone-400">Last Synced Timestamp:</span>
+                      <span className="col-span-2 font-mono font-bold text-right text-stone-700">
+                        {lastGdriveSync || "Never Synced"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 py-1.5 text-xs">
+                      <span className="text-stone-400">Sync Status:</span>
+                      <span className="col-span-2 text-right">
+                        {gdriveSyncStatus === "syncing" && (
+                          <span className="text-accent font-bold animate-pulse flex items-center gap-1 justify-end">
+                            <RefreshCw className="w-3 h-3 animate-spin inline-block shrink-0 text-accent" />
+                            Overwriting remote version...
+                          </span>
+                        )}
+                        {gdriveSyncStatus === "success" && (
+                          <span className="text-success-green font-bold flex items-center gap-1 justify-end animate-fade-in">
+                            Sync Completed Successfully (Replaced)
+                          </span>
+                        )}
+                        {gdriveSyncStatus === "error" && (
+                          <span className="text-bad font-bold flex items-center gap-1 justify-end">
+                            Sync Failed
+                          </span>
+                        )}
+                        {gdriveSyncStatus === "idle" && (
+                          <span className="text-stone-500 font-semibold italic">
+                            Idle (Awaiting database change or manual trigger)
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex flex-col sm:flex-row gap-3">
+                    <button
+                      type="button"
+                      disabled={!gdriveUser || !gdriveToken || isGdriveSyncing}
+                      onClick={async () => {
+                        if (!gdriveToken) return;
+                        setIsGdriveSyncing(true);
+                        setGdriveSyncStatus("syncing");
+                        setGdriveError(null);
+                        const res = await uploadOrUpdateMasterFile(workers, gdriveToken);
+                        if (res.success) {
+                          setLastGdriveSync(new Date().toLocaleString());
+                          setGdriveSyncStatus("success");
+                          showSuccess("Combined Master Records Spreadsheet backup replaced successfully!");
+                        } else {
+                          setGdriveSyncStatus("error");
+                          setGdriveError(res.error || "Manual backup replace failed");
+                        }
+                        setIsGdriveSyncing(false);
+                      }}
+                      className="flex-1 py-3 bg-accent hover:bg-accent/90 disabled:bg-stone-100 disabled:text-stone-400 disabled:border-stone-200 hover:scale-[1.01] active:scale-[0.98] text-white border border-transparent disabled:cursor-not-allowed font-mono font-bold text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-sm transition-all flex items-center justify-center gap-2"
+                    >
+                      {isGdriveSyncing ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                          <span>Syncing Archive...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Cloud className="w-4 h-4" />
+                          <span>Sync Now to Google Drive</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Integration Details explanation card */}
+                {gdriveUser && (
+                  <div className="p-4 bg-emerald-50/40 border border-emerald-500/20 rounded-xl space-y-1.5 animate-fade-in">
+                    <div className="text-xs font-bold font-display text-emerald-800 flex items-center gap-1.5">
+                      <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                      <span>How version replacing works with Google Drive API:</span>
+                    </div>
+                    <ul className="list-disc pl-4 text-[10px] text-stone-600 space-y-1">
+                      <li>The applet looks for an existing file named <code className="font-semibold bg-emerald-100/50 px-1 rounded text-emerald-900 text-[10px]">Combined_Master_Records_Archive.xlsx</code>, skipping trashed files.</li>
+                      <li>If found, it performs a <strong>direct overwrite swap</strong> of file content (media update patch), preserving the original file link and document ID on Google Drive.</li>
+                      <li>If the file is missing or deleted, the applet automatically recreates a new master file and logs the fresh ID, guaranteeing seamless daily coverage.</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+
             </div>
           </div>
         )}

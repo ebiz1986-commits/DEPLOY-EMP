@@ -43,7 +43,7 @@ const readDb = (): DbState => {
         { id: "opt-14", field: "final_status", value: "Arrived" }
       ],
       users: [
-        { username: "recruiter", password: "password", name: "Farid (Recruiter)", role: "recruiter", assigned_projects: ["proj-1"] },
+        { username: "recruiter", password: "password", name: "Farid (Recruiter)", role: "recruiter", assigned_projects: ["proj-1"], recruiter_company: "KSJ" },
         { username: "engineer", password: "password", name: "Ir. Tan (Engineer)", role: "engineer", assigned_projects: ["proj-1"] },
         { username: "ops", password: "password", name: "Sarah (Operations)", role: "ops", assigned_projects: ["proj-1"] },
         { username: "admin", password: "password", name: "Admin (System Admin)", role: "admin" },
@@ -105,7 +105,7 @@ const readDb = (): DbState => {
           category: "Agriculture",
           supply_company: "Apex Transit Ltd",
           state: "pending",
-          doc_upload_wa: "No",
+          doc_upload_wa: "Pending",
           status: "Pending",
           bureau: "Pending",
           final_status: "Pending",
@@ -120,7 +120,7 @@ const readDb = (): DbState => {
           sending_batch: "Batch #106",
           visa_doc_date: "2026-05-29",
           state: "active",
-          doc_upload_wa: "No",
+          doc_upload_wa: "Pending",
           status: "Pending",
           bureau: "Pending",
           final_status: "Pending",
@@ -133,7 +133,7 @@ const readDb = (): DbState => {
           category: "F&B Services",
           supply_company: "Oasis Labor Supply",
           state: "pending",
-          doc_upload_wa: "No",
+          doc_upload_wa: "Pending",
           status: "Pending",
           bureau: "Pending",
           final_status: "Pending",
@@ -276,7 +276,8 @@ const addSystemNotification = (
   role: UserRole,
   type: "info" | "success" | "warning" | "error" = "info",
   projectId?: string,
-  targetUser?: string
+  targetUser?: string,
+  associatedCompany?: string
 ) => {
   if (!db.notifications) {
     db.notifications = [];
@@ -289,7 +290,8 @@ const addSystemNotification = (
     created_at: new Date().toISOString(),
     type,
     project_id: projectId,
-    target_user: targetUser
+    target_user: targetUser,
+    associated_company: associatedCompany
   };
   db.notifications = [newNotif, ...db.notifications].slice(0, 100);
   return newNotif;
@@ -382,7 +384,7 @@ async function startServer() {
       category: w.category,
       supply_company: w.supply_company,
       state: "pending",
-      doc_upload_wa: "No",
+      doc_upload_wa: "Pending",
       status: "Pending",
       bureau: "Pending",
       final_status: "Pending",
@@ -394,7 +396,8 @@ async function startServer() {
       doc_upload_wa_date: initDateStr,
       status_date: initDateStr,
       bureau_date: initDateStr,
-      final_status_date: initDateStr
+      final_status_date: initDateStr,
+      gate_reject_reason: ""
     }));
 
     db.workers = [...createdWorkers, ...db.workers];
@@ -402,7 +405,7 @@ async function startServer() {
     const targetProjId = createdWorkers[0]?.project_id || "proj-1";
     const proj = db.projects?.find(p => p.id === targetProjId) || db.project_detail;
     const notifMsg = `Recruiter intake added ${createdWorkers.length} candidate(s) for project target: "${proj?.name || "Global"}"`;
-    const newNotif = addSystemNotification(db, notifMsg, "Recruiter Portal", "recruiter", "success", targetProjId);
+    const newNotif = addSystemNotification(db, notifMsg, "Recruiter Portal", "recruiter", "success", targetProjId, undefined, createdWorkers[0]?.supply_company);
     
     writeDb(db, newNotif);
 
@@ -457,7 +460,7 @@ async function startServer() {
     // Add engineering approval notification linked to project focus
     const projDetail = db.projects?.find(p => p.id === worker.project_id) || db.project_detail;
     const notifMsg = `Engineer Ir. Tan approved worker candidate "${worker.name}" under "${worker.category}" category for project target: "${projDetail?.name || "Global"}"`;
-    const newNotif = addSystemNotification(db, notifMsg, "Site Engineer", "engineer", "success", worker.project_id);
+    const newNotif = addSystemNotification(db, notifMsg, "Site Engineer", "engineer", "success", worker.project_id, undefined, worker.supply_company);
 
     writeDb(db, newNotif);
 
@@ -485,7 +488,7 @@ async function startServer() {
     // Add engineering hold notification
     const projDetail = db.projects?.find(p => p.id === worker.project_id) || db.project_detail;
     const notifMsg = `Engineer Ir. Tan placed worker candidate "${worker.name}" (${worker.category}) on HOLD for project: "${projDetail?.name || "Global"}" (Agency: ${worker.supply_company}).`;
-    const newNotif = addSystemNotification(db, notifMsg, "Site Engineer", "engineer", "warning", worker.project_id);
+    const newNotif = addSystemNotification(db, notifMsg, "Site Engineer", "engineer", "warning", worker.project_id, undefined, worker.supply_company);
 
     writeDb(db, newNotif);
 
@@ -495,6 +498,7 @@ async function startServer() {
   // 5b. API: Reject Worker (Engineer gate)
   app.put("/api/workers/:id/reject-gate", (req, res) => {
     const { id } = req.params;
+    const { reason } = req.body || {};
     const db = readDb();
 
     const workerIndex = db.workers.findIndex((w) => w.id === id);
@@ -506,14 +510,15 @@ async function startServer() {
     
     // Set state to rejected
     worker.state = "rejected";
+    worker.gate_reject_reason = reason || "";
     worker.last_updated = new Date().toISOString().split("T")[0];
 
     db.workers[workerIndex] = worker;
 
     // Add engineering rejection notification
     const projDetail = db.projects?.find(p => p.id === worker.project_id) || db.project_detail;
-    const notifMsg = `Engineer Ir. Tan REJECTED worker candidate "${worker.name}" (${worker.category}) under gate approvals for project: "${projDetail?.name || "Global"}" (Agency: ${worker.supply_company}).`;
-    const newNotif = addSystemNotification(db, notifMsg, "Site Engineer", "engineer", "error", worker.project_id);
+    const notifMsg = `Engineer Ir. Tan REJECTED worker candidate "${worker.name}" (${worker.category}) under gate approvals for project: "${projDetail?.name || "Global"}" (Agency: ${worker.supply_company}).${reason ? ` Reason: ${reason}` : ""}`;
+    const newNotif = addSystemNotification(db, notifMsg, "Site Engineer", "engineer", "error", worker.project_id, undefined, worker.supply_company);
 
     writeDb(db, newNotif);
 
@@ -626,7 +631,9 @@ async function startServer() {
         "Operations Admin",
         "ops",
         updates.status.toLowerCase().includes("approved") ? "success" : "warning",
-        updatedWorker.project_id
+        updatedWorker.project_id,
+        undefined,
+        updatedWorker.supply_company
       );
 
       // Explicit Bureau Clearance Pending Notification for Recruiter
@@ -637,7 +644,9 @@ async function startServer() {
           "System",
           "recruiter",
           "warning",
-          updatedWorker.project_id
+          updatedWorker.project_id,
+          undefined,
+          updatedWorker.supply_company
         );
         notifObj = bureauNotif; // Broadcast this as the primary real-time notification
       }
@@ -648,7 +657,9 @@ async function startServer() {
         "Operations Admin",
         "ops",
         updates.final_status === "Arrived" ? "success" : "info",
-        updatedWorker.project_id
+        updatedWorker.project_id,
+        undefined,
+        updatedWorker.supply_company
       );
     } else if (updates.bureau && updates.bureau !== currentWorker.bureau) {
       notifObj = addSystemNotification(
@@ -657,7 +668,9 @@ async function startServer() {
         "Recruiter Bureau",
         "recruiter",
         updates.bureau === "Complete" ? "success" : "error",
-        updatedWorker.project_id
+        updatedWorker.project_id,
+        undefined,
+        updatedWorker.supply_company
       );
     } else if (updates.wa_doc_reject_reason !== undefined && updates.wa_doc_reject_reason !== currentWorker.wa_doc_reject_reason && updates.wa_doc_reject_reason) {
       notifObj = addSystemNotification(
@@ -666,7 +679,9 @@ async function startServer() {
         "Coordinator",
         "ops",
         "error",
-        updatedWorker.project_id
+        updatedWorker.project_id,
+        undefined,
+        updatedWorker.supply_company
       );
     }
 

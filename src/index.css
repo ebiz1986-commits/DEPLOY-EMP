@@ -7,16 +7,16 @@
   --font-serif: "Fraunces", serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  --color-ink: #1a1614;
-  --color-paper: #f4f0e8;
-  --color-card: #fdfbf6;
-  --color-line: #d8cfc0;
-  --color-accent: #b8460e;
-  --color-success-green: #1f5c4d;
-  --color-gold: #c9a227;
-  --color-bad: #9e2b25;
-  --color-info: #2d5e8c;
-  --color-muted: #8a8175;
+  --color-ink: #0f172a;           /* deep slate 900 */
+  --color-paper: #f8fafc;         /* slate 50 */
+  --color-card: #ffffff;          /* solid white */
+  --color-line: #e2e8f0;          /* slate 200 */
+  --color-accent: #4f46e5;        /* indigo 600 */
+  --color-success-green: #059669; /* emerald 600 */
+  --color-gold: #d97706;          /* amber 600 */
+  --color-bad: #e11d48;           /* rose 600 */
+  --color-info: #0284c7;          /* sky 600 */
+  --color-muted: #64748b;         /* slate 500 */
 }
 
 /* Custom Scrollbars */
@@ -25,14 +25,14 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #f4f0e8;
+  background: var(--color-paper);
 }
 ::-webkit-scrollbar-thumb {
-  background: #d8cfc0;
+  background: var(--color-line);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #8a8175;
+  background: var(--color-muted);
 }
 
 body {

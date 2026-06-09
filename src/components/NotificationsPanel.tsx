@@ -55,6 +55,9 @@ export default function NotificationsPanel({
       if (notif.project_id && currentUser.assigned_projects && currentUser.assigned_projects.length > 0) {
         if (!currentUser.assigned_projects.includes(notif.project_id)) return false;
       }
+      if (currentUser.role === "recruiter" && currentUser.recruiter_company && notif.associated_company) {
+        if (notif.associated_company !== currentUser.recruiter_company) return false;
+      }
       return new Date(notif.created_at) > new Date(lastReadTime);
     }).length;
   }, [notifications, lastReadTime, currentUser]);
@@ -80,6 +83,11 @@ export default function NotificationsPanel({
     // Filter by project role bounds
     if (currentUser.role !== "admin" && currentUser.assigned_projects && currentUser.assigned_projects.length > 0) {
       list = list.filter(notif => !notif.project_id || currentUser.assigned_projects?.includes(notif.project_id));
+    }
+
+    // Filter out notifications strictly belonging to OTHER companies if we are a recruiter
+    if (currentUser.role === "recruiter" && currentUser.recruiter_company) {
+      list = list.filter(notif => !notif.associated_company || notif.associated_company === currentUser.recruiter_company);
     }
 
     if (filterMode === "project" && selectedProjectId) {
@@ -346,6 +354,12 @@ export default function NotificationsPanel({
                           {correlatedProj && (
                             <span className="bg-paper border border-line text-[8px] font-mono font-bold uppercase rounded px-1.5 py-0.2 shrink-0 max-w-28 truncate" title={correlatedProj.name}>
                               {correlatedProj.name}
+                            </span>
+                          )}
+
+                          {notif.associated_company && (
+                            <span className="bg-amber-50 border border-amber-200 text-amber-800 text-[8px] font-mono font-bold uppercase rounded px-1.5 py-0.2 shrink-0">
+                              {notif.associated_company}
                             </span>
                           )}
                         </div>

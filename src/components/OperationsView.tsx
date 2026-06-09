@@ -41,6 +41,19 @@ export default function OperationsView({
   currentUser
 }: OperationsViewProps) {
   
+  const getDaysWaiting = (createdAtStr?: string, completedAtStr?: string, isCompleted?: boolean) => {
+    if (!createdAtStr) return null;
+    try {
+      const createdDate = new Date(createdAtStr);
+      const endDate = isCompleted && completedAtStr ? new Date(completedAtStr) : new Date();
+      const diffTime = endDate.getTime() - createdDate.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays < 0 ? 0 : diffDays;
+    } catch (e) {
+      return null;
+    }
+  };
+
   // Filtering States
   const [selectedCompany, setSelectedCompany] = useState("All");
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -306,53 +319,88 @@ export default function OperationsView({
 
                       {/* WhatsApp Doc Checked checkbox list toggle */}
                       <td className="p-3">
-                        <div className="flex flex-col gap-1.5 min-w-[145px]">
-                          <div className="flex items-center gap-1.5 w-full">
-                            <select
-                              value={w.doc_upload_wa}
-                              onChange={(e) => handleFieldChange(w.id, "doc_upload_wa", e.target.value)}
-                              disabled={isDocUploadLocked}
-                              className={`text-[11px] px-2.5 py-1 font-mono rounded border outline-none w-full ${
-                                isDocUploadLocked 
-                                  ? "bg-stone-100 text-stone-400 border-stone-200 cursor-not-allowed" 
-                                  : "cursor-pointer"
-                              } ${
-                                w.doc_upload_wa === "Yes" 
-                                  ? "bg-success-green/10 text-success-green border-success-green/40 font-semibold" 
-                                  : "bg-red-50 text-bad border-bad/40"
-                              }`}
-                            >
-                              <option value="No">No (Checked Out)</option>
-                              <option value="Yes">Yes (WhatsApp OK)</option>
-                            </select>
-                            {isDocUploadLocked && (
-                              <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" title="Locked: Only system admin can modify after change applied" />
-                            )}
-                          </div>
-                          <span className="block text-[9px] text-[#8a8175] font-mono pl-1" title="WA Doc Change Date">
-                            Date: {w.doc_upload_wa_date || w.last_updated || (w.created_at ? w.created_at.split("T")[0] : "—")}
-                          </span>
-                          {w.doc_upload_wa === "No" && (
-                            <div className="w-full flex flex-col gap-0.5">
-                              <span className="text-[8px] uppercase tracking-wider font-semibold text-bad font-mono">Reject Reason:</span>
-                              <input
-                                type="text"
-                                placeholder="Enter rejection reason..."
-                                defaultValue={w.wa_doc_reject_reason || ""}
-                                onBlur={(e) => handleFieldChange(w.id, "wa_doc_reject_reason", e.target.value.trim())}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    handleFieldChange(w.id, "wa_doc_reject_reason", (e.target as HTMLInputElement).value.trim());
-                                    (e.target as HTMLInputElement).blur();
-                                  }
-                                }}
-                                disabled={isDocUploadLocked}
-                                className="text-[10px] w-full px-2 py-1 bg-stone-50 border border-stone-200 focus:border-bad/65 rounded shadow-sm outline-none font-sans"
-                                title="Press Enter or update focus to save rejection details"
-                              />
+                        {(() => {
+                          const docValue = w.doc_upload_wa === "No" ? "Pending" : w.doc_upload_wa;
+                          return (
+                            <div className="flex flex-col gap-1.5 min-w-[145px]">
+                              <div className="flex items-center gap-1.5 w-full">
+                                <select
+                                  value={docValue}
+                                  onChange={(e) => handleFieldChange(w.id, "doc_upload_wa", e.target.value)}
+                                  disabled={isDocUploadLocked}
+                                  className={`text-[11px] px-2.5 py-1 font-mono rounded border outline-none w-full ${
+                                    isDocUploadLocked 
+                                      ? "bg-stone-100 text-stone-400 border-stone-200 cursor-not-allowed" 
+                                      : "cursor-pointer"
+                                  } ${
+                                    docValue === "Yes" 
+                                      ? "bg-success-green/10 text-success-green border-success-green/40 font-semibold" 
+                                      : docValue === "Rejected"
+                                      ? "bg-red-50 text-bad border-bad/40 font-semibold"
+                                      : "bg-amber-50 text-amber-700 border-amber-300 font-semibold"
+                                  }`}
+                                >
+                                  <option value="Pending">Pending</option>
+                                  <option value="Yes">Yes</option>
+                                  <option value="Rejected">Rejected</option>
+                                </select>
+                                {isDocUploadLocked && (
+                                  <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" title="Locked: Only system admin can modify after change applied" />
+                                )}
+                              </div>
+                              <span className="block text-[9px] text-[#8a8175] font-mono pl-1" title="WA Doc Change Date">
+                                Date: {w.doc_upload_wa_date || w.last_updated || (w.created_at ? w.created_at.split("T")[0] : "—")}
+                              </span>
+                              
+                              {/* Display days waiting or took to upload */}
+                              {(() => {
+                                const isCompleted = docValue === "Yes";
+                                const completedDate = w.doc_upload_wa_date || w.last_updated || (w.created_at ? w.created_at.split("T")[0] : undefined);
+                                const days = getDaysWaiting(w.created_at, completedDate, isCompleted);
+                                if (days === null) return null;
+                                if (isCompleted) {
+                                  return (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-mono text-success-green bg-success-green/10 border border-success-green/20 px-1.5 py-0.5 rounded w-fit pl-1" title="Completed upload duration since record creation">
+                                      <CheckCircle2 className="w-3 h-3 text-success-green shrink-0" />
+                                      <span>Uploaded in {days} d</span>
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <span className={`inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded w-fit pl-1 ${
+                                    docValue === "Rejected"
+                                      ? "text-bad bg-red-50 border border-bad/20"
+                                      : "text-amber-700 bg-amber-50 border border-amber-100"
+                                  }`} title="Number of days queueing since Candidate record created by recruiting agency">
+                                    <Clock className="w-3 h-3 animate-pulse shrink-0" />
+                                    <span>Waiting: {days} {days === 1 ? "day" : "days"}</span>
+                                  </span>
+                                );
+                              })()}
+
+                              {(docValue === "Rejected" || docValue === "No") && (
+                                <div className="w-full flex flex-col gap-0.5">
+                                  <span className="text-[8px] uppercase tracking-wider font-semibold text-bad font-mono">Reject Reason:</span>
+                                  <input
+                                    type="text"
+                                    placeholder="Enter rejection reason..."
+                                    defaultValue={w.wa_doc_reject_reason || ""}
+                                    onBlur={(e) => handleFieldChange(w.id, "wa_doc_reject_reason", e.target.value.trim())}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        handleFieldChange(w.id, "wa_doc_reject_reason", (e.target as HTMLInputElement).value.trim());
+                                        (e.target as HTMLInputElement).blur();
+                                      }
+                                    }}
+                                    disabled={isDocUploadLocked}
+                                    className="text-[10px] w-full px-2 py-1 bg-stone-50 border border-stone-200 focus:border-bad/65 rounded shadow-sm outline-none font-sans"
+                                    title="Press Enter or update focus to save rejection details"
+                                  />
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Read-only Auto Stamp */}

@@ -18,7 +18,7 @@ export interface Worker {
   sending_batch?: string;
   visa_doc_date?: string;
   state: 'pending' | 'active' | 'rejected' | 'held';
-  doc_upload_wa: 'Yes' | 'No';
+  doc_upload_wa: 'Pending' | 'Yes' | 'Rejected' | 'No';
   last_updated?: string;
   status: string; // e.g. "Pending", "Visa Approved (xpact)", "Visa Reject (xpact)", "Applied second time"
   bureau: string; // e.g. "Pending", "Complete", "Reject"
@@ -34,6 +34,7 @@ export interface Worker {
   status_date?: string;
   bureau_date?: string;
   final_status_date?: string;
+  gate_reject_reason?: string;
 }
 
 export interface Category {
@@ -73,6 +74,7 @@ export interface SystemNotification {
   created_at: string;
   type: "info" | "success" | "warning" | "error";
   target_user?: string;
+  associated_company?: string;
 }
 
 export interface DbState {

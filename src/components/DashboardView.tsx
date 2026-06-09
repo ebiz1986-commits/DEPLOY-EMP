@@ -167,7 +167,7 @@ export default function DashboardView({
     
     // Coordinator WA Status
     const countWaCompleted = subset.filter((w) => w.doc_upload_wa === "Yes").length;
-    const countWaPending = subset.filter((w) => w.doc_upload_wa === "No").length;
+    const countWaPending = subset.filter((w) => w.doc_upload_wa !== "Yes").length;
 
     // Pipeline statuses
     const countVisaApproved = subset.filter((w) => w.status === "Visa Approved (xpact)").length;
@@ -267,7 +267,7 @@ export default function DashboardView({
 
       // WA Doc stats
       const waDocCompleted = companyWorkers.filter(w => w.doc_upload_wa === "Yes").length;
-      const waDocPending = companyWorkers.filter(w => w.doc_upload_wa === "No").length;
+      const waDocPending = companyWorkers.filter(w => w.doc_upload_wa !== "Yes").length;
 
       // Visa XPact status after WA Doc (i.e. among those with WA Doc = Yes)
       const afterWaDocWorkers = companyWorkers.filter(w => w.doc_upload_wa === "Yes");
@@ -302,10 +302,14 @@ export default function DashboardView({
       "Visa Approved Date": w.visa_doc_date || "Pending",
       "Sending Batch": w.sending_batch || "None",
       "WhatsApp Checker": w.doc_upload_wa,
+      "WhatsApp Status Date": w.doc_upload_wa_date ? new Date(w.doc_upload_wa_date).toLocaleDateString() : "N/A",
       "Last Stage Transition": w.last_updated || "N/A",
       "Visa Status": w.status,
+      "Visa Status Date": w.status_date ? new Date(w.status_date).toLocaleDateString() : "N/A",
       "Bureau Placement": w.bureau,
+      "Bureau Date": w.bureau_date ? new Date(w.bureau_date).toLocaleDateString() : "N/A",
       "Final Placement": w.final_status,
+      "Final Status Date": w.final_status_date ? new Date(w.final_status_date).toLocaleDateString() : "N/A",
       "Database Creation": new Date(w.created_at).toLocaleDateString()
     }));
 
@@ -1037,9 +1041,17 @@ export default function DashboardView({
                             HOLD
                           </span>
                         ) : w.state === "rejected" ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-bad/10 text-bad border border-bad/20 text-[10px] font-mono font-bold rounded-md">
-                            REJECTED
-                          </span>
+                          <div className="space-y-1">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-bad/10 text-bad border border-bad/20 text-[10px] font-mono font-bold rounded-md">
+                              REJECTED
+                            </span>
+                            {w.gate_reject_reason && (
+                              <div className="text-[9px] font-sans font-medium text-bad bg-[#FEF2F2] border border-bad/15 rounded px-1.5 py-0.5 leading-tight max-w-[130px] break-words">
+                                <span className="font-extrabold text-[8px] text-bad block uppercase tracking-wider">Gate Reject Reason:</span>
+                                {w.gate_reject_reason}
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-paper text-muted border border-line/60 text-[10px] font-mono font-semibold rounded-md">
                             AWAITING GATE
@@ -1090,13 +1102,49 @@ export default function DashboardView({
                       
                       {/* WhatsApp document */}
                       <td className="p-3">
-                        <span className={`inline-block px-1.5 py-0.5 font-mono text-[10px] rounded ${
-                          w.doc_upload_wa === "Yes" 
-                            ? "bg-success-green/10 text-success-green border border-success-green/20" 
-                            : "bg-red-50 text-bad border border-bad/20"
-                        }`}>
-                          {w.doc_upload_wa}
-                        </span>
+                        {(() => {
+                          const docValue = w.doc_upload_wa === "No" ? "Pending" : w.doc_upload_wa;
+                          const isCompleted = docValue === "Yes";
+                          const completedDate = w.doc_upload_wa_date || w.last_updated;
+                          const getDaysLocal = (createdAtStr?: string) => {
+                            if (!createdAtStr) return null;
+                            try {
+                              const createdDate = new Date(createdAtStr);
+                              const endDate = isCompleted && completedDate ? new Date(completedDate) : new Date();
+                              const diffTime = endDate.getTime() - createdDate.getTime();
+                              const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                              return diffDays < 0 ? 0 : diffDays;
+                            } catch (e) {
+                              return null;
+                            }
+                          };
+                          const days = getDaysLocal(w.created_at);
+                          return (
+                            <div className="flex flex-col gap-0.5">
+                              <span className={`inline-block px-1.5 py-0.5 font-mono text-[10px] rounded w-fit ${
+                                docValue === "Yes" 
+                                  ? "bg-success-green/10 text-success-green border border-success-green/20" 
+                                  : docValue === "Rejected"
+                                  ? "bg-red-50 text-bad border border-bad/20 font-semibold"
+                                  : "bg-amber-50 text-amber-700 border border-amber-200 font-semibold"
+                              }`}>
+                                {docValue}
+                              </span>
+                              {days !== null && (
+                                <span className="block text-[9.5px] text-[#8a8175] font-mono mt-0.5" title={isCompleted ? "Duration from record creation to WA upload" : "Active waiting time since record creation"}>
+                                  {isCompleted ? `Took ${days} d` : `Waiting ${days} d`}
+                                </span>
+                              )}
+                              
+                              {(docValue === "Rejected" || docValue === "No") && w.wa_doc_reject_reason && (
+                                <div className="mt-1 text-[9px] font-sans font-medium text-bad bg-[#FEF2F2] border border-bad/15 rounded px-1.5 py-0.5 leading-tight max-w-[130px] break-words">
+                                  <span className="font-extrabold text-[8px] text-bad block uppercase tracking-wider">Reject Reason:</span>
+                                  {w.wa_doc_reject_reason}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                       
                       {/* Status */}
