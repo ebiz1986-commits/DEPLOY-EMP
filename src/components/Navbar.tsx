@@ -11,6 +11,7 @@ import {
   Building2
 } from "lucide-react";
 import NotificationsPanel from "./NotificationsPanel";
+import { SankenLogo } from "./SankenLogo";
 
 interface NavbarProps {
   currentUser: User;
@@ -92,9 +93,7 @@ export default function Navbar({
       <div className="flex items-center gap-4">
         {/* S Logo Icon */}
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center text-card font-serif font-bold text-xl shadow-sm hover:scale-105 transition-transform">
-            S
-          </div>
+          <SankenLogo variant="diamonds" className="w-11 h-11 hover:scale-105 transition-transform" />
           <div>
             <h2 className="text-xs sm:text-sm font-bold tracking-tight text-ink font-display leading-tight">
               Sanken Overseas

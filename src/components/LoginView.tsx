@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { User, UserRole } from "../types";
 import { KeyRound, ShieldAlert, Sparkles, User as UserIcon } from "lucide-react";
+import { SankenLogo } from "./SankenLogo";
 
 interface LoginViewProps {
   onLogin: (user: User) => void;
@@ -68,10 +69,12 @@ export default function LoginView({ onLogin }: LoginViewProps) {
               <span>SANKEN OVERSEAS PIPELINE METRICS</span>
             </div>
             
-            <h1 className="text-3xl lg:text-4xl font-serif mt-12 mb-4 leading-tight">
-              Worker<br />
-              Deployment<br />
-              <span className="text-accent italic font-normal">Tracker</span>
+            <div className="my-10 flex justify-start">
+              <SankenLogo variant="full" mode="dark" className="w-full max-w-[280px] drop-shadow-lg" />
+            </div>
+
+            <h1 className="text-xl lg:text-2xl font-serif mb-4 leading-tight text-stone-200">
+              Worker Deployment <span className="text-accent italic font-normal">Tracker</span>
             </h1>
             <p className="text-stone-400 text-sm leading-relaxed font-sans max-w-xs">
               Replaces the legacy manual Masterfile. Live quota verification and role-based stage monitoring.
