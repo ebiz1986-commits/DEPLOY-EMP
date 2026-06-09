@@ -1015,8 +1015,8 @@ export default function AdminPanel({
         {activeSubTab === "quotas" && (
           <div className="space-y-6 animate-fade-in">
             {/* Vendor Filter / Selector tab bar */}
-            <div className="bg-card border border-line rounded-xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 font-sans">
-              <div className="space-y-1">
+            <div className="bg-card border border-line rounded-xl p-5 shadow-sm flex flex-col gap-4 font-sans">
+              <div className="space-y-1 pb-3 border-b border-line/50">
                 <h3 className="text-sm font-semibold text-ink font-display flex items-center gap-1.5">
                   <Sliders className="w-4 h-4 text-accent" />
                   Supply Vendor Wise Labor Allocations
@@ -1026,7 +1026,7 @@ export default function AdminPanel({
                 </p>
               </div>
 
-              <div className="space-y-1.5 shrink-0">
+              <div className="space-y-2">
                 <span className="text-[10px] uppercase font-bold tracking-wider font-mono text-muted block">
                   Select Active Vendor:
                 </span>
