@@ -147,36 +147,7 @@ export default function LoginView({ onLogin }: LoginViewProps) {
             </form>
           </div>
 
-          {/* Quick Sandbox Selector */}
-          <div className="mt-8 pt-6 border-t border-line">
-            <h3 className="text-xs font-mono text-muted mb-3 uppercase tracking-wider">
-              Sandbox Role Quick Selector
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {demoAccounts.map((acc) => (
-                <button
-                  key={acc.username}
-                  type="button"
-                  onClick={() => selectDemoAccount(acc)}
-                  className={`flex flex-col items-start p-2 border rounded-lg text-left transition-all group ${
-                    username === acc.username
-                      ? "bg-accent/5 border-accent ring-1 ring-accent"
-                      : "bg-paper/20 hover:bg-paper/45 border-line"
-                  }`}
-                >
-                  <span className="text-xs font-medium text-ink flex items-center justify-between w-full">
-                    <span>{acc.label}</span>
-                    <span className="text-[9px] font-mono text-muted group-hover:text-accent tracking-tighter shrink-0 ml-1">
-                      {acc.badge}
-                    </span>
-                  </span>
-                  <span className="text-[10px] font-mono text-muted">
-                    user: {acc.username} / pw: password
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
+
 
         </div>
       </div>
