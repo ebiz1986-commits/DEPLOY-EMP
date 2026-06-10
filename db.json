@@ -130,6 +130,26 @@
       "id": "opt-1780751714532",
       "field": "sending_batch",
       "value": "B-003"
+    },
+    {
+      "id": "opt-nat-bg",
+      "field": "nationality",
+      "value": "Bangladeshi"
+    },
+    {
+      "id": "opt-nat-in",
+      "field": "nationality",
+      "value": "Indian"
+    },
+    {
+      "id": "opt-nat-sl",
+      "field": "nationality",
+      "value": "Sri Lankan"
+    },
+    {
+      "id": "opt-nat-np",
+      "field": "nationality",
+      "value": "Nepali"
     }
   ],
   "users": [

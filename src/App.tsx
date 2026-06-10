@@ -529,6 +529,7 @@ export default function App() {
             workers={workers}
             categories={categories}
             companies={companies}
+            dropdownOptions={dropdownOptions}
             projectDetail={projectDetail}
             onRefresh={fetchDbState}
             onBulkAdd={handleBulkAdd}

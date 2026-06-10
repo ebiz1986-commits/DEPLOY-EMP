@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from "react";
-import { Category, Company, Worker, ProjectDetail, User } from "../types";
+import { Category, Company, Worker, ProjectDetail, User, DropdownOption } from "../types";
 import { 
   UserPlus, 
   Trash2, 
@@ -27,9 +27,10 @@ interface RecruiterIntakeViewProps {
   workers: Worker[];
   categories: Category[];
   companies: Company[];
+  dropdownOptions: DropdownOption[];
   projectDetail?: ProjectDetail | null;
   onRefresh: () => void;
-  onBulkAdd: (newWorkers: { name: string; passport: string; category: string; supply_company: string }[]) => Promise<{ success: boolean; message?: string }>;
+  onBulkAdd: (newWorkers: { name: string; passport: string; category: string; supply_company: string; nationality?: string; doc_link?: string; bulk_doc_link?: string }[]) => Promise<{ success: boolean; message?: string }>;
   onUpdateWorker: (id: string, updates: Partial<Worker>) => Promise<boolean>;
   currentUser?: User | null;
   onDeleteWorker?: (id: string) => Promise<boolean>;
@@ -41,12 +42,14 @@ interface WorkerFormInput {
   category: string;
   supply_company: string;
   doc_link?: string;
+  nationality?: string;
 }
 
 export default function RecruiterIntakeView({
   workers,
   categories,
   companies,
+  dropdownOptions,
   projectDetail,
   onRefresh,
   onBulkAdd,
@@ -60,7 +63,7 @@ export default function RecruiterIntakeView({
 
   // Bulk entry lines
   const [rows, setRows] = useState<WorkerFormInput[]>([
-    { name: "", passport: "", category: "", supply_company: companies[0]?.name || "", doc_link: "" }
+    { name: "", passport: "", category: "", supply_company: companies[0]?.name || "", doc_link: "", nationality: "" }
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -106,11 +109,13 @@ export default function RecruiterIntakeView({
       const passportIdx = headers.findIndex(h => h.includes("passport") || h.includes("pass") || h.includes("id") || h.includes("number"));
       const catIdx = headers.findIndex(h => h.includes("category") || h.includes("job") || h.includes("role"));
       const coIdx = headers.findIndex(h => h.includes("company") || h.includes("agency") || h.includes("recruiter") || h.includes("supply"));
+      const natIdx = headers.findIndex(h => h.includes("nationality") || h.includes("nation") || h.includes("country"));
 
       const finalNameIdx = nameIdx !== -1 ? nameIdx : 0;
       const finalPassportIdx = passportIdx !== -1 ? passportIdx : 1;
       const finalCatIdx = catIdx !== -1 ? catIdx : (lines[0].length > 2 ? 2 : -1);
       const finalCoIdx = coIdx !== -1 ? coIdx : (lines[0].length > 3 ? 3 : -1);
+      const finalNatIdx = natIdx !== -1 ? natIdx : -1;
 
       const parsedRows: WorkerFormInput[] = [];
 
@@ -130,13 +135,21 @@ export default function RecruiterIntakeView({
           || companies[0]?.name 
           || "";
 
+        let nationalityInput = finalNatIdx !== -1 && cols[finalNatIdx] ? cols[finalNatIdx].trim() : "";
+        let matchedNat = dropdownOptions
+          .filter(d => d.field === "nationality")
+          .find(d => d.value.toLowerCase() === nationalityInput.toLowerCase())?.value 
+          || dropdownOptions.filter(d => d.field === "nationality")[0]?.value
+          || "";
+
         if (name && passport) {
           parsedRows.push({
             name: name.replace(/^["']|["']$/g, "").trim(),
             passport: passport.replace(/^["']|["']$/g, "").trim(),
             category: matchedCat,
             supply_company: currentUser?.role === "recruiter" ? defaultCompany : matchedCo,
-            doc_link: ""
+            doc_link: "",
+            nationality: matchedNat
           });
         }
       }
@@ -316,14 +329,15 @@ export default function RecruiterIntakeView({
         passport: "", 
         category: lastRow?.category || "", 
         supply_company: currentUser?.role === "recruiter" ? defaultCompany : (lastRow?.supply_company || companies[0]?.name || ""),
-        doc_link: ""
+        doc_link: "",
+        nationality: lastRow?.nationality || ""
       }
     ]);
   };
 
   const handleRemoveRow = (index: number) => {
     if (rows.length === 1) {
-      setRows([{ name: "", passport: "", category: "", supply_company: currentUser?.role === "recruiter" ? defaultCompany : (companies[0]?.name || ""), doc_link: "" }]);
+      setRows([{ name: "", passport: "", category: "", supply_company: currentUser?.role === "recruiter" ? defaultCompany : (companies[0]?.name || ""), doc_link: "", nationality: "" }]);
     } else {
       setRows(rows.filter((_, i) => i !== index));
     }
@@ -412,13 +426,14 @@ export default function RecruiterIntakeView({
         category: r.category,
         supply_company: currentUser?.role === "recruiter" ? defaultCompany : r.supply_company,
         doc_link: r.doc_link?.trim() || "",
-        bulk_doc_link: bulkDocLinkInput.trim()
+        bulk_doc_link: bulkDocLinkInput.trim(),
+        nationality: r.nationality || ""
       }));
 
       const res = await onBulkAdd(payload);
       if (res.success) {
         setSuccessMessage(`Success: ${payload.length} workers registered under State: PENDING.`);
-        setRows([{ name: "", passport: "", category: "", supply_company: currentUser?.role === "recruiter" ? defaultCompany : (companies[0]?.name || ""), doc_link: "" }]);
+        setRows([{ name: "", passport: "", category: "", supply_company: currentUser?.role === "recruiter" ? defaultCompany : (companies[0]?.name || ""), doc_link: "", nationality: "" }]);
         setBulkDocLinkInput("");
       } else {
         setErrorMessage(res.message || "An error occurred with registration.");
@@ -619,11 +634,11 @@ export default function RecruiterIntakeView({
         </div>
       )}
 
-      {/* Grid Split: Left (Bulk Add form), Right (Bureau Pending Queue) */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+      {/* Stacked Layout: Bulk Add Form (1st), followed by Bureau Pending Queue */}
+      <div className="space-y-6">
         
         {/* Bulk Intake Form Column */}
-        <div className="xl:col-span-7 bg-card border border-line rounded-xl p-5 shadow-sm space-y-4">
+        <div className="w-full bg-card border border-line rounded-xl p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-semibold text-ink font-display flex items-center gap-2">
@@ -762,6 +777,7 @@ export default function RecruiterIntakeView({
                     <th className="p-2.5 pl-3 w-10 text-center">Row</th>
                     <th className="p-2.5">Worker Full Name</th>
                     <th className="p-2.5">Passport Number</th>
+                    <th className="p-2.5">Nationality</th>
                     <th className="p-2.5">Job Category</th>
                     <th className="p-2.5">Doc Link / URL <span className="opacity-70 text-[8px] font-sans lowercase italic">(optional)</span></th>
                     <th className="p-2.5 w-12 text-center">Delete</th>
@@ -824,6 +840,29 @@ export default function RecruiterIntakeView({
                               <span>Repeated in list</span>
                             </div>
                           )}
+                        </td>
+
+                        {/* Nationality Select dropdown */}
+                        <td className="p-1.5">
+                          <select
+                            value={row.nationality || ""}
+                            onChange={(e) => handleRowChange(index, "nationality", e.target.value)}
+                            className={`w-full bg-paper/20 border rounded px-1.5 py-1.5 text-xs outline-none transition-all ${
+                              !row.nationality 
+                                ? "border-amber-500/50 hover:border-amber-500 text-amber-700 bg-amber-50/10 font-medium" 
+                                : "border-line/60 focus:border-accent text-ink"
+                            }`}
+                            required
+                          >
+                            <option value="">-- Nationality --</option>
+                            {dropdownOptions
+                              .filter(d => d.field === "nationality")
+                              .map(opt => (
+                                <option key={opt.id} value={opt.value}>
+                                  {opt.value}
+                                </option>
+                              ))}
+                          </select>
                         </td>
 
                          {/* Category */}
@@ -959,8 +998,8 @@ export default function RecruiterIntakeView({
           </form>
         </div>
 
-        {/* Bureau queue Column (Right) */}
-        <div className="xl:col-span-5 bg-card border border-line rounded-xl p-5 shadow-sm space-y-4 flex flex-col justify-between max-h-screen">
+        {/* Bureau queue Column (Below Form) */}
+        <div className="w-full bg-card border border-line rounded-xl p-5 shadow-sm space-y-4">
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>

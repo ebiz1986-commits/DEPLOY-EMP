@@ -1623,6 +1623,19 @@ export default function AdminPanel({
                   </div>
                 </div>
 
+                {/* Nationalities */}
+                <div className="border border-line rounded-xl p-3 bg-paper/20">
+                  <h4 className="font-mono text-[10px] text-muted uppercase border-b border-line pb-1 mb-2">Nationalities Options</h4>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {dropdownOptions.filter(d => d.field === "nationality").map(opt => (
+                      <div key={opt.id} className="flex items-center justify-between p-1 px-2 border border-line/35 bg-card rounded text-xs select-none">
+                        <span>{opt.value}</span>
+                        <button onClick={() => handleDeleteDropdownOption(opt.id, opt.value)} className="hover:text-bad text-muted text-[10px]">×</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
               </div>
             </div>
 
@@ -1645,6 +1658,7 @@ export default function AdminPanel({
                     <option value="status">Visa Status (xpact)</option>
                     <option value="bureau">Bureau Clearance</option>
                     <option value="final_status">Final Placement Status</option>
+                    <option value="nationality">Nationality</option>
                   </select>
                 </div>
 

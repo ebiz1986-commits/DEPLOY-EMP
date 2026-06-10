@@ -40,7 +40,11 @@ const readDb = (): DbState => {
         { id: "opt-11", field: "bureau", value: "Reject" },
         { id: "opt-12", field: "final_status", value: "Pending" },
         { id: "opt-13", field: "final_status", value: "Booked" },
-        { id: "opt-14", field: "final_status", value: "Arrived" }
+        { id: "opt-14", field: "final_status", value: "Arrived" },
+        { id: "opt-nat-1", field: "nationality", value: "Bangladeshi" },
+        { id: "opt-nat-2", field: "nationality", value: "Indian" },
+        { id: "opt-nat-3", field: "nationality", value: "Sri Lankan" },
+        { id: "opt-nat-4", field: "nationality", value: "Nepali" }
       ],
       users: [
         { username: "recruiter", password: "password", name: "Farid (Recruiter)", role: "recruiter", assigned_projects: ["proj-1"], recruiter_company: "KSJ" },
@@ -397,7 +401,8 @@ async function startServer() {
       status_date: initDateStr,
       bureau_date: initDateStr,
       final_status_date: initDateStr,
-      gate_reject_reason: ""
+      gate_reject_reason: "",
+      nationality: (w as any).nationality || ""
     }));
 
     db.workers = [...createdWorkers, ...db.workers];
