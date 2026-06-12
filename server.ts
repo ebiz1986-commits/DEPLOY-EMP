@@ -188,6 +188,19 @@ const readDb = (): DbState => {
   const content = fs.readFileSync(DB_FILE, "utf8");
   const db = JSON.parse(content) as DbState;
   
+  let stateChanged = false;
+  if (!db.bureau_allocations) {
+    db.bureau_allocations = [];
+    stateChanged = true;
+  }
+  if (!db.xpact_allocations) {
+    db.xpact_allocations = [];
+    stateChanged = true;
+  }
+  if (stateChanged) {
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf8");
+  }
+
   // Migrate existing single project_detail to projects list
   if (!db.projects || db.projects.length === 0) {
     const singleProj = {
@@ -717,6 +730,22 @@ async function startServer() {
     db.categories = newCategories;
     writeDb(db);
     res.json({ success: true, categories: db.categories });
+  });
+
+  app.post("/api/config/update-bureau-allocations", (req, res) => {
+    const newBureauAllocations = req.body;
+    const db = readDb();
+    db.bureau_allocations = newBureauAllocations;
+    writeDb(db);
+    res.json({ success: true, bureau_allocations: db.bureau_allocations });
+  });
+
+  app.post("/api/config/update-xpact-allocations", (req, res) => {
+    const newXpactAllocations = req.body;
+    const db = readDb();
+    db.xpact_allocations = newXpactAllocations;
+    writeDb(db);
+    res.json({ success: true, xpact_allocations: db.xpact_allocations });
   });
 
   app.post("/api/config/update-companies", (req, res) => {

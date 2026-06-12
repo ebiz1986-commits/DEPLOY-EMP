@@ -638,19 +638,19 @@ export default function RecruiterIntakeView({
       <div className="space-y-6">
         
         {/* Bulk Intake Form Column */}
-        <div className="w-full bg-card border border-line rounded-xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
+        <div className="w-full bg-card border border-slate-300 rounded-xl p-5 shadow-md space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div>
-              <h2 className="text-base font-semibold text-ink font-display flex items-center gap-2">
+              <h2 className="text-base font-bold text-ink font-display flex items-center gap-2">
                 <UserPlus className="w-4 text-accent" />
                 <span>Bulk Fast-Intake Register</span>
               </h2>
-              <p className="text-xs text-muted">Register workers fast under state=pending. (Allocation limit is NOT affected yet).</p>
+              <p className="text-xs text-slate-500">Register workers fast under state=pending. (Allocation limit is NOT affected yet).</p>
             </div>
             
             <button
               onClick={() => onRefresh()}
-              className="text-[10px] font-mono text-muted hover:text-accent border border-line rounded px-2 py-1 bg-paper/30 cursor-pointer"
+              className="text-[10px] font-mono text-slate-700 hover:text-accent border border-slate-300 rounded px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 cursor-pointer font-semibold shadow-sm"
             >
               Sync DB
             </button>
@@ -658,20 +658,20 @@ export default function RecruiterIntakeView({
 
           {/* Project Destination Banner */}
           {projectDetail ? (
-            <div className="bg-amber-50/40 border border-line rounded-lg p-3 text-xs flex items-center justify-between font-sans">
+            <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-3 text-xs flex items-center justify-between font-sans shadow-sm">
               <div className="flex items-center gap-2">
-                <ClipboardList className="w-4 h-4 text-accent shrink-0" />
+                <ClipboardList className="w-4 h-4 text-amber-700 shrink-0" />
                 <div>
-                  <span className="font-semibold text-ink">Intake Target Project: </span>
-                  <span className="text-accent font-bold">{projectDetail.name}</span>
+                  <span className="font-bold text-slate-900">Intake Target Project: </span>
+                  <span className="text-indigo-700 font-extrabold">{projectDetail.name}</span>
                 </div>
               </div>
-              <div className="text-[10px] font-mono text-muted">
-                Contract: <span className="font-semibold text-ink">{projectDetail.contract_number}</span>
+              <div className="text-[11px] font-mono text-slate-600 bg-amber-100/80 px-2 py-0.5 rounded border border-amber-200">
+                Contract: <span className="font-bold text-indigo-900">{projectDetail.contract_number}</span>
               </div>
             </div>
           ) : (
-            <div className="bg-red-50 text-bad border border-bad/20 p-3 rounded-lg text-xs font-sans">
+            <div className="bg-rose-50 text-rose-800 border-2 border-rose-200 p-3 rounded-lg text-xs font-sans font-semibold">
               Warning: No active project focused. Registering workers will assign them to the fallback default project profile.
             </div>
           )}
@@ -685,10 +685,10 @@ export default function RecruiterIntakeView({
             onDragLeave={handleDrag}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className={`cursor-pointer border-2 border-dashed rounded-xl p-4 text-center transition-all flex flex-col items-center justify-center gap-2 ${
+            className={`cursor-pointer border-2 border-dashed rounded-xl p-5 text-center transition-all flex flex-col items-center justify-center gap-2 ${
               dragActive 
-                ? "border-accent bg-accent/5" 
-                : "border-line hover:border-accent hover:bg-paper/20"
+                ? "border-accent bg-accent/10" 
+                : "border-slate-300 bg-slate-50/60 hover:bg-slate-100 hover:border-accent"
             }`}
           >
             <input 
@@ -698,15 +698,15 @@ export default function RecruiterIntakeView({
               onChange={handleFileChange}
               className="hidden"
             />
-            <div className="p-2 bg-paper border border-line rounded-lg text-accent">
-              <FileSpreadsheet className="w-4 h-4 text-accent" />
+            <div className="p-2.5 bg-white border border-slate-350 rounded-lg text-accent shadow-sm">
+              <FileSpreadsheet className="w-5 h-5 text-accent" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-ink">
-                Drag &amp; drop worker CSV roster here, or <span className="text-accent underline text-xs font-semibold">browse computer</span>
+              <p className="text-xs font-bold text-slate-800">
+                Drag &amp; drop worker CSV roster here, or <span className="text-accent underline text-xs font-bold">browse computer</span>
               </p>
-              <p className="text-[10px] text-muted mt-1 leading-normal">
-                Columns auto-matched: <code className="bg-paper px-1 py-0.5 rounded font-mono text-[9px]">Name</code>, <code className="bg-paper px-1 py-0.5 rounded font-mono text-[9px]">Passport</code>, <code className="bg-paper px-1 py-0.5 rounded font-mono text-[9px]">Category</code>.
+              <p className="text-[10px] text-slate-500 mt-1 leading-normal font-medium">
+                Columns auto-matched: <code className="bg-white border border-slate-200 px-1 py-0.5 rounded font-mono text-[9px] text-indigo-700 font-bold">Name</code>, <code className="bg-white border border-slate-200 px-1 py-0.5 rounded font-mono text-[9px] text-indigo-700 font-bold">Passport</code>, <code className="bg-white border border-slate-200 px-1 py-0.5 rounded font-mono text-[9px] text-indigo-700 font-bold">Category</code>.
               </p>
             </div>
           </div>
@@ -770,55 +770,55 @@ export default function RecruiterIntakeView({
             )}
 
             {/* Scrollable grid table */}
-            <div className="border border-line/60 rounded-lg overflow-hidden">
-               <table className="w-full text-left text-xs text-ink font-sans">
-                <thead className="bg-paper text-muted font-mono text-[9px] uppercase">
+            <div className="border-2 border-slate-350 rounded-lg overflow-hidden shadow-sm">
+               <table className="w-full text-left text-xs text-slate-900 font-sans">
+                <thead className="bg-slate-100 border-b-2 border-slate-350 text-slate-700 font-mono text-[10px] uppercase font-bold">
                   <tr>
-                    <th className="p-2.5 pl-3 w-10 text-center">Row</th>
-                    <th className="p-2.5">Worker Full Name</th>
-                    <th className="p-2.5">Passport Number</th>
-                    <th className="p-2.5">Nationality</th>
-                    <th className="p-2.5">Job Category</th>
-                    <th className="p-2.5">Doc Link / URL <span className="opacity-70 text-[8px] font-sans lowercase italic">(optional)</span></th>
-                    <th className="p-2.5 w-12 text-center">Delete</th>
+                    <th className="p-3 pl-4 w-10 text-center border-r border-slate-200">Row</th>
+                    <th className="p-3 border-r border-slate-200">Worker Full Name</th>
+                    <th className="p-3 border-r border-slate-200">Passport Number</th>
+                    <th className="p-3 border-r border-slate-200">Nationality</th>
+                    <th className="p-3 border-r border-slate-200">Job Category</th>
+                    <th className="p-3 border-r border-slate-200">Doc Link / URL <span className="text-slate-500 text-[8px] font-sans lowercase italic font-normal">(optional)</span></th>
+                    <th className="p-3 w-12 text-center">Delete</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-line/45">
+                <tbody className="divide-y-2 divide-slate-200 bg-white">
                   {rows.map((row, index) => {
                     const passportUpper = row.passport.trim().toUpperCase();
                     const isDuplicateInDb = existingPassportSet.has(passportUpper);
                     const isDuplicateInBatch = rowDuplicates[passportUpper] > 1;
 
                     return (
-                      <tr key={index} className="hover:bg-paper/10">
+                      <tr key={index} className="hover:bg-slate-50/70 transition-colors">
                         {/* Num */}
-                        <td className="p-2 text-center font-mono text-[10px] text-muted">
+                        <td className="p-2 text-center font-mono text-[11px] font-bold text-slate-600 bg-slate-50 border-r border-slate-200">
                           {index + 1}
                         </td>
                         
                         {/* Name input */}
-                        <td className="p-1.5">
+                        <td className="p-1.5 border-r border-slate-200">
                           <input
                             type="text"
                             value={row.name}
                             onChange={(e) => handleRowChange(index, "name", e.target.value)}
                             onPaste={(e) => handlePasteBlock(index, e)}
                             placeholder="Full name (pasting tabbed allowed)"
-                            className="w-full bg-paper/20 border border-line/60 focus:border-accent rounded px-2 py-1.5 text-xs outline-none"
+                            className="w-full bg-white border border-slate-350 focus:border-accent focus:ring-1 focus:ring-accent rounded px-2.5 py-1.5 text-xs outline-none text-slate-900 font-medium shadow-xs"
                             required
                           />
                         </td>
                         
                         {/* Passport Input with dynamic warning */}
-                        <td className="p-1.5 relative">
+                        <td className="p-1.5 relative border-r border-slate-200">
                           <input
                             type="text"
                             value={row.passport}
                             onChange={(e) => handleRowChange(index, "passport", e.target.value.toUpperCase())}
                             onPaste={(e) => handlePasteBlock(index, e)}
                             placeholder="Passport eg: A281938"
-                            className={`w-full bg-paper/20 border rounded px-2 py-1.5 text-xs outline-none mono-text font-medium ${
-                              isDuplicateInDb || isDuplicateInBatch ? "border-bad/80 text-bad bg-red-50/40 font-semibold" : "border-line/60 focus:border-accent"
+                            className={`w-full bg-white border rounded px-2.5 py-1.5 text-xs outline-none mono-text font-bold shadow-xs ${
+                              isDuplicateInDb || isDuplicateInBatch ? "border-rose-500 text-rose-900 bg-rose-55 font-extrabold" : "border-slate-350 focus:border-accent focus:ring-1 focus:ring-accent text-slate-900"
                             }`}
                             required
                           />
@@ -829,13 +829,13 @@ export default function RecruiterIntakeView({
                             </span>
                           )}
                           {passportUpper && isDuplicateInDb && (
-                            <div className="text-[9px] text-bad font-semibold mt-1 font-sans flex items-center gap-1 leading-tight">
+                            <div className="text-[9px] text-rose-800 font-bold mt-1 font-sans flex items-center gap-1 leading-tight bg-rose-100 border border-rose-200 px-1 py-0.5 rounded shadow-2xs">
                               <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
                               <span>Exists in DB Masterfile</span>
                             </div>
                           )}
                           {passportUpper && !isDuplicateInDb && isDuplicateInBatch && (
-                            <div className="text-[9px] text-bad font-semibold mt-1 font-sans flex items-center gap-1 leading-tight">
+                            <div className="text-[9px] text-rose-700 font-bold mt-1 font-sans flex items-center gap-1 leading-tight bg-amber-50 border border-amber-200 px-1 py-0.5 rounded">
                               <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
                               <span>Repeated in list</span>
                             </div>
@@ -843,14 +843,14 @@ export default function RecruiterIntakeView({
                         </td>
 
                         {/* Nationality Select dropdown */}
-                        <td className="p-1.5">
+                        <td className="p-1.5 border-r border-slate-200">
                           <select
                             value={row.nationality || ""}
                             onChange={(e) => handleRowChange(index, "nationality", e.target.value)}
-                            className={`w-full bg-paper/20 border rounded px-1.5 py-1.5 text-xs outline-none transition-all ${
+                            className={`w-full border rounded px-1.5 py-1.5 text-xs outline-none transition-all shadow-xs ${
                               !row.nationality 
-                                ? "border-amber-500/50 hover:border-amber-500 text-amber-700 bg-amber-50/10 font-medium" 
-                                : "border-line/60 focus:border-accent text-ink"
+                                ? "border-amber-500 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold" 
+                                : "bg-white border-slate-350 focus:border-accent focus:ring-1 focus:ring-accent text-slate-900 font-medium"
                             }`}
                             required
                           >
@@ -866,14 +866,14 @@ export default function RecruiterIntakeView({
                         </td>
 
                          {/* Category */}
-                        <td className="p-1.5">
+                        <td className="p-1.5 border-r border-slate-200">
                           <select
                             value={row.category}
                             onChange={(e) => handleRowChange(index, "category", e.target.value)}
-                            className={`w-full bg-paper/20 border rounded px-1.5 py-1.5 text-xs outline-none transition-all ${
+                            className={`w-full border rounded px-1.5 py-1.5 text-xs outline-none transition-all shadow-xs ${
                               !row.category 
-                                ? "border-amber-500/50 hover:border-amber-500 text-amber-700 bg-amber-50/10 font-medium" 
-                                : "border-line/60 focus:border-accent text-ink"
+                                ? "border-amber-500 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold" 
+                                : "bg-white border-slate-350 focus:border-accent focus:ring-1 focus:ring-accent text-slate-900 font-medium"
                             }`}
                             required
                           >
@@ -892,7 +892,7 @@ export default function RecruiterIntakeView({
                                 const activeCount = workers.filter(w => w.category === cat.name && w.supply_company === resolvedCompany && w.state === "active").length;
                                 const remaining = limit - activeCount;
                                 return (
-                                  <div className={`mt-1 text-[10px] uppercase font-mono px-1 rounded flex justify-between items-center transition-all ${remaining <= 0 ? 'text-red-700 bg-red-100/50 font-semibold' : remaining <= 2 ? 'text-amber-700 bg-amber-100/50 font-semibold' : 'text-green-700 bg-green-100/50'}`}>
+                                  <div className={`mt-1 text-[10px] uppercase font-mono px-2 py-0.5 rounded-md border flex justify-between items-center transition-all ${remaining <= 0 ? 'text-rose-900 bg-rose-100 border-rose-300 font-extrabold shadow-2xs' : remaining <= 2 ? 'text-amber-950 bg-amber-100 border-amber-300 font-bold' : 'text-emerald-950 bg-emerald-100 border-emerald-300 font-bold'}`}>
                                     <span>Alloc limit: {limit}</span>
                                     <span>{remaining} left</span>
                                   </div>
@@ -904,13 +904,13 @@ export default function RecruiterIntakeView({
                         </td>
 
                         {/* Related Doc Link Input */}
-                        <td className="p-1.5">
+                        <td className="p-1.5 border-r border-slate-200">
                           <input
                             type="text"
                             value={row.doc_link || ""}
                             onChange={(e) => handleRowChange(index, "doc_link", e.target.value)}
                             placeholder="Link (Optional) e.g. Drive, Dropbox"
-                            className="w-full bg-paper/20 border border-line/60 focus:border-accent rounded px-2 py-1.5 text-xs outline-none"
+                            className="w-full bg-white border border-slate-350 focus:border-accent focus:ring-1 focus:ring-accent rounded px-2.5 py-1.5 text-xs outline-none text-slate-800 shadow-xs"
                           />
                         </td>
 
@@ -919,9 +919,9 @@ export default function RecruiterIntakeView({
                           <button
                             type="button"
                             onClick={() => handleRemoveRow(index)}
-                            className="text-muted hover:text-bad p-1 rounded hover:bg-red-50/50"
+                            className="text-slate-400 hover:text-bad p-1.5 rounded-md border border-slate-200 hover:border-red-200 hover:bg-red-50 transition-all shadow-2xs"
                           >
-                            <Trash2 className="w-3.5 h-3.5 mx-auto" />
+                            <Trash2 className="w-4 h-4 mx-auto" />
                           </button>
                         </td>
                       </tr>
@@ -932,15 +932,15 @@ export default function RecruiterIntakeView({
             </div>
 
             {/* Form actions and Agency selection */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 border-t border-line/50">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t-2 border-slate-250">
               {/* Global company selector to apply to all added workers */}
               <div className="flex items-center gap-2 w-full sm:w-auto font-sans">
-                <span className="text-[10px] font-mono text-muted uppercase tracking-wider shrink-0">
+                <span className="text-[10px] font-mono text-slate-700 uppercase tracking-wider shrink-0 font-bold">
                   Supply Agency Assigned:
                 </span>
                 {currentUser?.role === "recruiter" ? (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-accent/5 border border-accent/20 text-accent rounded-lg text-xs font-semibold">
-                    <Lock className="w-3.5 h-3.5 shrink-0 text-accent/80" />
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border-2 border-indigo-400 text-indigo-900 rounded-lg text-xs font-bold shadow-2xs">
+                    <Lock className="w-3.5 h-3.5 shrink-0 text-indigo-600" />
                     <span>{defaultCompany}</span>
                   </div>
                 ) : (
@@ -951,7 +951,7 @@ export default function RecruiterIntakeView({
                       const updated = rows.map((r) => ({ ...r, supply_company: co }));
                       setRows(updated);
                     }}
-                    className="bg-paper/30 text-xs px-2.5 py-1.5 rounded-lg border border-line outline-none font-medium cursor-pointer"
+                    className="bg-white text-xs px-2.5 py-1.5 rounded-lg border-2 border-slate-350 outline-none font-bold cursor-pointer text-slate-900 shadow-xs focus:border-accent"
                   >
                     {companies.map(co => (
                       <option key={co.id} value={co.name}>{co.name}</option>
@@ -962,16 +962,16 @@ export default function RecruiterIntakeView({
 
               {/* Bulk Document Link Input (Shared Folder URL) */}
               <div className="flex flex-col gap-1 w-full sm:w-64 max-w-full">
-                <label className="text-[9px] uppercase font-mono font-bold text-muted flex items-center gap-1">
-                  <FolderOpen className="w-3.5 h-3.5 text-accent shrink-0 animate-pulse" />
-                  <span>Bulk Doc Link <span className="text-[8px] lowercase font-sans font-normal opacity-70 italic">(optional)</span></span>
+                <label className="text-[9px] uppercase font-mono font-bold text-slate-700 flex items-center gap-1">
+                  <FolderOpen className="w-3.5 h-3.5 text-accent shrink-0" />
+                  <span>Bulk Doc Link <span className="text-[8px] lowercase font-sans font-semibold text-slate-500 italic">(optional)</span></span>
                 </label>
                 <input
                   type="text"
                   value={bulkDocLinkInput}
                   onChange={(e) => setBulkDocLinkInput(e.target.value)}
                   placeholder="Optional batch Google Drive / Dropbox folder"
-                  className="w-full bg-paper/20 border border-line/60 focus:border-accent rounded-lg px-2.5 py-1.5 text-xs outline-none italic font-medium"
+                  className="w-full bg-white border-2 border-slate-350 focus:border-accent focus:ring-1 focus:ring-accent rounded-lg px-2.5 py-1.5 text-xs outline-none italic text-slate-900 font-bold shadow-xs whitespace-nowrap"
                 />
               </div>
 
@@ -980,7 +980,7 @@ export default function RecruiterIntakeView({
                 <button
                   type="button"
                   onClick={handleAddRow}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 border border-line rounded-lg text-xs font-mono text-muted hover:text-ink hover:bg-paper/40 transition-all cursor-pointer"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 border-2 border-slate-350 rounded-lg text-xs font-mono text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-all font-bold cursor-pointer shadow-sm"
                 >
                   + Add Next Row
                 </button>
@@ -988,7 +988,7 @@ export default function RecruiterIntakeView({
                   id="intake-submit-btn"
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-accent hover:bg-accent/95 disabled:opacity-50 text-white rounded-lg text-xs font-mono uppercase tracking-wider transition-all cursor-pointer"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-5 py-2.5 bg-accent hover:bg-accent/95 disabled:opacity-50 text-white rounded-lg text-xs font-mono uppercase tracking-wider font-bold transition-all cursor-pointer shadow-md"
                 >
                   {isSubmitting ? "Syncing..." : `Register cohort (${rows.filter(r => r.name || r.passport).length} rows)`}
                 </button>
@@ -999,15 +999,15 @@ export default function RecruiterIntakeView({
         </div>
 
         {/* Bureau queue Column (Below Form) */}
-        <div className="w-full bg-card border border-line rounded-xl p-5 shadow-sm space-y-4">
+        <div className="w-full bg-card border border-slate-300 rounded-xl p-5 shadow-md space-y-4">
           <div className="space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-200 pb-3">
               <div>
-                <h2 className="text-base font-semibold text-ink font-display flex items-center gap-2">
-                  <FileCheck2 className="w-4 text-success-green animate-pulse" />
+                <h2 className="text-base font-bold text-slate-900 font-display flex items-center gap-2">
+                  <FileCheck2 className="w-4 text-emerald-600 animate-pulse" />
                   <span>Bureau Pending Queue</span>
                 </h2>
-                <p className="text-xs text-muted">Workers whose visa got approved. Clear them for travel book.</p>
+                <p className="text-xs text-slate-500 font-medium">Workers whose visa got approved. Clear them for travel book.</p>
               </div>
               {/* Expand/Collapse All Toggles to quickly save space */}
               {bureauQueue.length > 0 && (
@@ -1021,7 +1021,7 @@ export default function RecruiterIntakeView({
                     }
                     setExpandedBureauWorkers(newStates);
                   }}
-                  className="px-2.5 py-1 text-[10px] font-mono font-bold bg-stone-100 hover:bg-stone-200 active:bg-stone-300 border border-stone-300/80 rounded-md text-stone-700 transition self-end sm:self-center shrink-0 shadow-sm"
+                  className="px-3 py-1.5 text-[10px] font-mono font-bold bg-slate-100 hover:bg-slate-200 active:bg-slate-300 border-2 border-slate-300 rounded-md text-slate-700 transition self-end sm:self-center shrink-0 shadow-sm cursor-pointer"
                 >
                   {bureauQueue.every(w => expandedBureauWorkers[w.id]) ? "Collapse All ◭" : "Expand All ⧩"}
                 </button>
@@ -1030,60 +1030,60 @@ export default function RecruiterIntakeView({
 
             {/* Optional beautiful inline warning/alert notification for pending tasks */}
             {pendingBureauCount > 0 && (
-              <div className="p-3 bg-amber-500/10 border border-gold/40 rounded-lg text-xs text-amber-700 flex gap-2 items-center animate-pulse">
+              <div className="p-3 bg-amber-100 border-2 border-amber-400 rounded-lg text-xs text-amber-950 flex gap-2 items-center animate-pulse shadow-xs">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                <div className="font-semibold">
+                <div className="font-bold">
                   Action Required: {pendingBureauCount} candidate{pendingBureauCount !== 1 ? 's' : ''} awaiting Bureau Clearance action.
                 </div>
               </div>
             )}
 
             {/* Filters specific to bureau pending queue */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 bg-paper/40 rounded-lg border border-line/60">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 rounded-lg border border-slate-300 shadow-sm">
               <input
                 type="text"
                 placeholder="Find by Name or Passport..."
                 value={bureauSearch}
                 onChange={(e) => setBureauSearch(e.target.value)}
-                className="text-[11px] px-2.5 py-1.5 bg-card border border-line focus:border-accent rounded-lg outline-none w-full"
+                className="text-[11px] px-2.5 py-1.5 bg-white border-2 border-slate-350 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 rounded-lg outline-none w-full font-bold shadow-xs text-slate-900"
               />
               <div className="relative">
                 <select
                   value={activeSupplyCompany}
                   disabled={currentUser?.role === "recruiter"}
                   onChange={(e) => setBureauCompanyFilter(e.target.value)}
-                  className={`text-[11px] px-3 py-1.5 bg-card border rounded outline-none w-full font-semibold pr-8 font-sans appearance-none ${
+                  className={`text-[11px] px-3 py-1.5 bg-white border-2 rounded-lg outline-none w-full font-bold pr-8 font-sans appearance-none shadow-xs text-slate-900 ${
                     currentUser?.role === "recruiter"
-                      ? "border-[#D97706]/40 text-[#D97706]/90 cursor-not-allowed bg-paper"
-                      : "border-accent/25 hover:border-accent text-accent cursor-pointer"
+                      ? "border-amber-500 text-amber-950 cursor-not-allowed bg-amber-50/70"
+                      : "border-slate-350 hover:border-indigo-600 focus:border-indigo-600 text-slate-900 cursor-pointer"
                   }`}
                 >
                   {currentUser?.role === "recruiter" ? (
                     <option value={defaultCompany}>{defaultCompany}</option>
                   ) : (
                     <>
-                      <option value="All" className="text-ink font-medium">All Companies</option>
+                      <option value="All" className="text-slate-900 font-bold">All Companies</option>
                       {companies.map(co => (
-                        <option key={co.id} value={co.name} className="text-ink font-medium">{co.name}</option>
+                        <option key={co.id} value={co.name} className="text-slate-900 font-medium">{co.name}</option>
                       ))}
                     </>
                   )}
                 </select>
                 <div className={`pointer-events-none absolute inset-y-0 right-3 flex items-center ${
-                  currentUser?.role === "recruiter" ? "text-[#D97706]/80" : "text-accent"
+                  currentUser?.role === "recruiter" ? "text-amber-600" : "text-indigo-600"
                 }`}>
-                  <Building className="w-3.5 h-3.5" />
+                  <Building className="w-3.5 h-3.5 stroke-[2]" />
                 </div>
               </div>
             </div>
           </div>
 
           {/* List display */}
-          <div className="flex-1 overflow-y-auto space-y-2 max-h-[350px] pr-1 scrollbar-thin">
+          <div className="flex-1 overflow-y-auto space-y-3.5 max-h-[420px] pr-1.5 scrollbar-thin">
             {bureauQueue.length === 0 ? (
-              <div className="p-8 text-center border border-dashed border-line rounded-lg text-muted text-xs">
-                <p className="font-semibold text-ink">Bureau pending is clear</p>
-                <p className="text-[10px]">Awaiting worker status updates to &quot;Visa Approved (xpact)&quot;.</p>
+              <div className="p-8 text-center border-2 border-dashed border-slate-250 bg-slate-50 rounded-lg text-slate-500 text-xs font-semibold">
+                <p className="font-bold text-slate-805">Bureau pending is clear</p>
+                <p className="text-[10px] mt-1 text-slate-400">Awaiting worker status updates to &quot;Visa Approved (xpact)&quot;.</p>
               </div>
             ) : (
               bureauQueue.map((w, index) => {
@@ -1094,31 +1094,31 @@ export default function RecruiterIntakeView({
                 return (
                   <div 
                     key={w.id} 
-                    className="border border-line/70 bg-paper/85 shadow-2xs rounded-lg hover:shadow-xs hover:border-accent/30 transition-all duration-200 flex flex-col text-xs leading-relaxed"
+                    className="border-2 border-slate-250 bg-slate-50/90 shadow-xs rounded-xl hover:shadow-md hover:border-indigo-400 focus-within:border-indigo-400 transition-all duration-200 flex flex-col text-xs leading-relaxed"
                   >
                     {/* Compact Header row */}
-                    <div className="p-2 sm:p-2.5 flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+                    <div className="p-3 flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
                       {/* Index & Basic details */}
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         {/* Serial Number Badge */}
-                        <span className="shrink-0 flex items-center justify-center font-mono font-bold text-[10px] w-5.5 h-5.5 bg-accent/10 border border-accent/20 text-accent rounded">
+                        <span className="shrink-0 flex items-center justify-center font-mono font-extrabold text-[11px] w-6.5 h-6.5 bg-indigo-100 border-2 border-indigo-300 text-indigo-950 rounded-lg shadow-2xs">
                           {index + 1}
                         </span>
                         
                         <div className="min-w-0">
-                          {/* Name (Compact modern typography) */}
-                          <div className="font-display font-semibold text-ink text-[12.5px] truncate select-all">{w.name}</div>
-                          <div className="font-mono text-[9.5px] font-medium text-stone-500 tracking-wide truncate">
-                            {w.passport} &nbsp;|&nbsp; {w.category}
+                          {/* Name (Compact typography) */}
+                          <div className="font-display font-extrabold text-slate-900 text-[13.5px] truncate select-all">{w.name}</div>
+                          <div className="font-mono text-[10px] font-bold text-slate-600 tracking-wide truncate">
+                            {w.passport} &nbsp;⬩&nbsp; {w.category}
                           </div>
                         </div>
                       </div>
 
                       {/* Right column: Status waiting badge, Quick actions and Toggle */}
-                      <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
+                      <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
                         {/* Compact Bureau Waiting Duration */}
                         {w.bureau === "Pending" && (
-                          <span className="px-1.5 py-0.5 font-mono text-[9px] font-bold text-red-700 bg-red-50 border border-red-250/20 rounded-md" title="Active waiting duration in Bureau queue">
+                          <span className="px-2.5 py-1 font-mono text-[9.5px] font-extrabold text-rose-950 bg-rose-100 border border-rose-300 rounded-md shadow-2xs" title="Active waiting duration in Bureau queue">
                             {(() => {
                               const baseDateStr = w.bureau_pending_at || w.last_updated || w.created_at;
                               if (!baseDateStr) return "0 d";
@@ -1126,28 +1126,28 @@ export default function RecruiterIntakeView({
                               const now = new Date().getTime();
                               const diffTime = now - baseTime;
                               const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-                              return `${Math.max(0, days)} d`;
+                              return `${Math.max(0, days)} days waiting`;
                             })()}
                           </span>
                         )}
 
                         {/* Compact Arrival Waiting Duration */}
                         {w.bureau === "Complete" && w.final_status !== "Arrived" && (
-                          <span className="px-1.5 py-0.5 font-mono text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/40 rounded-md" title="Waiting for Arrival">
+                          <span className="px-2.5 py-1 font-mono text-[9.5px] font-extrabold text-indigo-955 bg-indigo-100 border border-indigo-300 rounded-md shadow-2xs" title="Waiting for Arrival">
                             Waiting Arrival
                           </span>
                         )}
 
                         {/* Quick Action Decision pill (Complete / Reject buttons) */}
-                        <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex items-center gap-1.5 shrink-0">
                           <button
                             disabled={w.bureau !== "Pending"}
                             onClick={() => handleBureauAction(w.id, "Complete")}
-                            className={`px-2 py-0.8 text-[9px] font-semibold font-mono rounded uppercase tracking-tight transition-all border ${
+                            className={`px-3 py-1.5 text-[9.5px] font-bold font-mono rounded uppercase tracking-tight transition-all border-2 cursor-pointer shadow-2xs ${
                               isCleared 
-                                ? "bg-success-green text-white border-success-green" 
-                                : "bg-card text-success-green hover:bg-success-green/10 border-success-green/30"
-                            } ${w.bureau !== "Pending" ? "opacity-45 cursor-not-allowed" : "cursor-pointer"}`}
+                                ? "bg-emerald-600 text-white border-emerald-600" 
+                                : "bg-white text-emerald-800 hover:bg-emerald-50 border-emerald-500"
+                            } ${w.bureau !== "Pending" ? "opacity-35 cursor-not-allowed" : "cursor-pointer"}`}
                             title="Complete bureau action"
                           >
                             Complete
@@ -1156,11 +1156,11 @@ export default function RecruiterIntakeView({
                           <button
                             disabled={w.bureau !== "Pending"}
                             onClick={() => handleBureauAction(w.id, "Reject")}
-                            className={`px-2 py-0.8 text-[9px] font-semibold font-mono rounded uppercase tracking-tight transition-all border ${
+                            className={`px-3 py-1.5 text-[9.5px] font-bold font-mono rounded uppercase tracking-tight transition-all border-2 cursor-pointer shadow-2xs ${
                               isRejected 
-                                ? "bg-bad text-white border-bad" 
-                                : "bg-card text-bad hover:bg-bad/10 border-bad/30"
-                            } ${w.bureau !== "Pending" ? "opacity-45 cursor-not-allowed" : "cursor-pointer"}`}
+                                ? "bg-rose-600 text-white border-rose-600" 
+                                : "bg-white text-rose-800 hover:bg-rose-50 border-rose-400"
+                            } ${w.bureau !== "Pending" ? "opacity-35 cursor-not-allowed" : "cursor-pointer"}`}
                             title="Reject bureau action"
                           >
                             Reject
@@ -1176,13 +1176,13 @@ export default function RecruiterIntakeView({
                               [w.id]: !prev[w.id]
                             }));
                           }}
-                          className="p-1 hover:bg-stone-100 rounded transition text-stone-500 hover:text-stone-700 border border-stone-200/40"
+                          className="p-1 px-1.5 hover:bg-slate-200 rounded-lg transition text-slate-700 hover:text-slate-900 border border-slate-350 cursor-pointer shadow-2xs"
                           title={isExpanded ? "Collapse Details" : "Expand Details"}
                         >
                           {isExpanded ? (
-                            <ChevronUp className="w-3.5 h-3.5" />
+                            <ChevronUp className="w-4 h-4" />
                           ) : (
-                            <ChevronDown className="w-3.5 h-3.5" />
+                            <ChevronDown className="w-4 h-4" />
                           )}
                         </button>
                       </div>
@@ -1190,16 +1190,16 @@ export default function RecruiterIntakeView({
 
                     {/* Collapsible Details Panel */}
                     {isExpanded && (
-                      <div className="px-3 pb-2.5 pt-1.5 border-t border-dashed border-stone-200 bg-stone-50/40 rounded-b-lg flex flex-col gap-1.5 animate-fade-in text-xs">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[10.5px]">
+                      <div className="px-3.5 pb-3.5 pt-2.5 border-t-2 border-dashed border-slate-300 bg-slate-100 rounded-b-lg flex flex-col gap-2.5 animate-fade-in text-xs text-slate-900 font-semibold shadow-inner">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10.5px]">
                           <div>
-                            <span className="text-[9px] uppercase font-bold text-stone-400 block tracking-wider">Supply Company</span>
-                            <span className="font-semibold text-stone-700 leading-normal block truncate">{w.supply_company}</span>
+                            <span className="text-[9px] uppercase font-bold text-slate-500 block tracking-wider">Supply Company</span>
+                            <span className="font-bold text-slate-800 leading-normal block truncate">{w.supply_company}</span>
                           </div>
 
                           <div>
-                            <span className="text-[9px] uppercase font-bold text-stone-400 block tracking-wider">Registered Since</span>
-                            <span className="font-mono text-stone-600 font-medium block">
+                            <span className="text-[9px] uppercase font-bold text-slate-500 block tracking-wider">Registered Since</span>
+                            <span className="font-mono text-slate-700 font-bold block">
                               {w.created_at ? new Date(w.created_at).toLocaleDateString() : "Pending"}
                             </span>
                           </div>
@@ -1207,16 +1207,16 @@ export default function RecruiterIntakeView({
 
                         {/* Expandable Document Download Section */}
                         {(w.doc_link || w.bulk_doc_link) && (
-                          <div className="mt-1 pb-1 flex flex-wrap gap-2 items-center border-t border-stone-200/50 pt-2">
+                          <div className="mt-1 pb-1 flex flex-wrap gap-2 items-center border-t border-slate-300/80 pt-2">
                             {w.doc_link && (
                               <a
                                 href={w.doc_link.startsWith("http") ? w.doc_link : `https://${w.doc_link}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1 font-mono text-[9px] bg-accent/8 border border-accent/20 hover:bg-accent/15 text-accent px-2 py-0.8 rounded font-semibold transition shrink-0"
+                                className="inline-flex items-center gap-1.5 font-mono text-[9.5px] bg-indigo-50 border-2 border-indigo-200 hover:bg-indigo-100 text-indigo-900 px-2.5 py-1 rounded font-bold transition shrink-0 shadow-2xs"
                                 title="Download Candidate Document"
                               >
-                                <ExternalLink className="w-2.5 h-2.5 shrink-0 stroke-[2]" />
+                                <ExternalLink className="w-3 h-3 shrink-0 stroke-[2.5]" />
                                 <span>Worker Doc</span>
                               </a>
                             )}
@@ -1225,10 +1225,10 @@ export default function RecruiterIntakeView({
                                 href={w.bulk_doc_link.startsWith("http") ? w.bulk_doc_link : `https://${w.bulk_doc_link}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1 font-mono text-[9px] bg-emerald-600/8 border border-emerald-500/20 hover:bg-emerald-600/15 text-emerald-800 px-2 py-0.8 rounded font-semibold transition shrink-0"
+                                className="inline-flex items-center gap-1.5 font-mono text-[9.5px] bg-emerald-50 border-2 border-emerald-200 hover:bg-emerald-100 text-emerald-950 px-2.5 py-1 rounded font-bold transition shrink-0 shadow-2xs"
                                 title="Download Bulk Batch Folder"
                               >
-                                <FolderOpen className="w-2.5 h-2.5 shrink-0 stroke-[2]" />
+                                <FolderOpen className="w-3 h-3 shrink-0 stroke-[2.5]" />
                                 <span>Bulk Folder</span>
                               </a>
                             )}
@@ -1236,9 +1236,9 @@ export default function RecruiterIntakeView({
                         )}
                         
                         {/* Helper explanation details */}
-                        <div className="text-[9px] text-stone-500 bg-stone-100/40 p-1.5 rounded border border-stone-200/20 leading-snug">
+                        <div className="text-[9.5px] text-slate-650 bg-white/70 p-2 rounded-lg border border-slate-300 leading-snug">
                           Waiting duration tracker:{" "}
-                          <strong className="text-stone-600">
+                          <strong className="text-slate-800">
                             {(() => {
                               const baseDateStr = w.bureau_pending_at || w.last_updated || w.created_at;
                               if (!baseDateStr) return "0 Days";
@@ -1268,100 +1268,100 @@ export default function RecruiterIntakeView({
       {/* 🛡️ Engineering & Coordinator Decisions Audit Block */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in" id="engineering-coordinator-audits-dashboard">
         {/* Engineer Decisions Card */}
-        <div className="bg-card border border-line rounded-xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-line/40 pb-2.5">
-            <h3 className="text-xs font-semibold text-ink font-display flex items-center gap-1.5 animate-fade-in">
-              <span className="p-1 px-1.5 bg-accent/10 text-accent font-bold rounded text-xs font-mono">ENG</span>
+        <div className="bg-card border border-slate-300 rounded-xl p-5 shadow-md space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+            <h3 className="text-xs font-bold text-slate-900 font-display flex items-center gap-1.5 animate-fade-in">
+              <span className="p-1 px-1.5 bg-indigo-100 text-indigo-950 font-extrabold rounded text-xs font-mono">ENG</span>
               <span>ENGINEER DECISIONS AUDIT</span>
             </h3>
-            <span className="text-[10px] font-mono text-muted uppercase tracking-wider">Gate Decisions</span>
+            <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider font-bold">Gate Decisions</span>
           </div>
           
           <div className="grid grid-cols-3 gap-3">
             {/* Engineer Authorized */}
-            <div className="bg-paper/40 p-3 rounded-lg border border-line/40 text-center flex flex-col justify-between">
-              <span className="text-[10px] font-mono text-muted uppercase font-semibold">Authorized</span>
-              <span className="text-2xl font-serif text-success-green font-bold block my-1">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-250 text-center flex flex-col justify-between shadow-2xs">
+              <span className="text-[10px] font-mono text-slate-700 uppercase font-bold">Authorized</span>
+              <span className="text-2xl font-serif text-emerald-600 font-extrabold block my-1">
                 {recruiterWorkers.filter(w => w.state === "active").length}
               </span>
-              <span className="text-[9px] text-[#8a8175] font-mono">Deployment OK</span>
+              <span className="text-[9px] text-slate-500 font-mono font-semibold">Deployment OK</span>
             </div>
 
             {/* Engineer Hold */}
-            <div className="bg-paper/40 p-3 rounded-lg border border-line/40 text-center flex flex-col justify-between">
-              <span className="text-[10px] font-mono text-muted uppercase font-semibold">On Hold</span>
-              <span className="text-2xl font-serif text-amber-600 font-bold block my-1">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-250 text-center flex flex-col justify-between shadow-2xs">
+              <span className="text-[10px] font-mono text-slate-700 uppercase font-bold">On Hold</span>
+              <span className="text-2xl font-serif text-amber-600 font-extrabold block my-1">
                 {recruiterWorkers.filter(w => w.state === "held").length}
               </span>
-              <span className="text-[9px] text-[#8a8175] font-mono">Gate Hold</span>
+              <span className="text-[9px] text-slate-500 font-mono font-semibold">Gate Hold</span>
             </div>
 
             {/* Engineer Rejected */}
-            <div className="bg-paper/40 p-3 rounded-lg border border-line/40 text-center flex flex-col justify-between">
-              <span className="text-[10px] font-mono text-muted uppercase font-semibold">Rejected</span>
-              <span className="text-2xl font-serif text-bad font-bold block my-1">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-250 text-center flex flex-col justify-between shadow-2xs">
+              <span className="text-[10px] font-mono text-slate-700 uppercase font-bold">Rejected</span>
+              <span className="text-2xl font-serif text-bad font-extrabold block my-1">
                 {recruiterWorkers.filter(w => w.state === "rejected").length}
               </span>
-              <span className="text-[9px] text-[#8a8175] font-mono">Gate Denied</span>
+              <span className="text-[9px] text-slate-500 font-mono font-semibold">Gate Denied</span>
             </div>
           </div>
         </div>
 
         {/* Coordinator Decisions Card */}
-        <div className="bg-card border border-line rounded-xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-line/40 pb-2.5">
-            <h3 className="text-xs font-semibold text-indigo-600 font-display flex items-center gap-1.5 animate-fade-in">
-              <span className="p-1 px-1.5 bg-indigo-500/10 text-indigo-600 font-bold rounded text-xs font-mono">COR</span>
+        <div className="bg-card border border-slate-300 rounded-xl p-5 shadow-md space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+            <h3 className="text-xs font-bold text-indigo-900 font-display flex items-center gap-1.5 animate-fade-in">
+              <span className="p-1 px-1.5 bg-indigo-150 text-indigo-950 font-extrabold rounded text-xs font-mono">COR</span>
               <span>COORDINATOR WA & PLACEMENT AUDIT</span>
             </h3>
-            <span className="text-[10px] font-mono text-muted uppercase tracking-wider">Operations Pipeline</span>
+            <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider font-bold">Operations Pipeline</span>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             {/* WA Upload Completed */}
-            <div className="bg-paper/40 p-3 rounded-lg border border-line/40 text-center flex flex-col justify-between">
-              <span className="text-[10px] font-mono text-muted uppercase font-semibold">WA Uploaded</span>
-              <span className="text-2xl font-serif text-info font-bold block my-1">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-250 text-center flex flex-col justify-between shadow-2xs">
+              <span className="text-[10px] font-mono text-slate-700 uppercase font-bold">WA Uploaded</span>
+              <span className="text-2xl font-serif text-indigo-700 font-extrabold block my-1">
                 {recruiterWorkers.filter(w => w.doc_upload_wa === "Yes").length}
               </span>
-              <span className="text-[9px] text-[#8a8175] font-mono">WhatsApp Doc Ok</span>
+              <span className="text-[9px] text-slate-500 font-mono font-semibold">WhatsApp Doc Ok</span>
             </div>
 
             {/* WA Pending */}
-            <div className="bg-paper/40 p-3 rounded-lg border border-line/40 text-center flex flex-col justify-between">
-              <span className="text-[10px] font-mono text-muted uppercase font-semibold">WA Pending</span>
-              <span className="text-2xl font-serif text-stone-600 font-bold block my-1">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-250 text-center flex flex-col justify-between shadow-2xs">
+              <span className="text-[10px] font-mono text-slate-700 uppercase font-bold">WA Pending</span>
+              <span className="text-2xl font-serif text-slate-700 font-extrabold block my-1">
                 {recruiterWorkers.filter(w => w.doc_upload_wa !== "Yes").length}
               </span>
-              <span className="text-[9px] text-[#8a8175] font-mono">Awaiting Upload</span>
+              <span className="text-[9px] text-slate-500 font-mono font-semibold">Awaiting Upload</span>
             </div>
 
             {/* Visa/Bureau Rejected */}
-            <div className="bg-paper/40 p-3 rounded-lg border border-line/40 text-center flex flex-col justify-between">
-              <span className="text-[10px] font-mono text-muted uppercase font-semibold">Rejected</span>
-              <span className="text-2xl font-serif text-bad font-bold block my-1">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-250 text-center flex flex-col justify-between shadow-2xs">
+              <span className="text-[10px] font-mono text-slate-700 uppercase font-bold">Rejected</span>
+              <span className="text-2xl font-serif text-bad font-extrabold block my-1">
                 {recruiterWorkers.filter(w => w.status === "Visa Reject (xpact)").length + recruiterWorkers.filter(w => w.bureau === "Reject").length}
               </span>
-              <span className="text-[9px] text-[#8a8175] font-mono">Embassy/Bureau</span>
+              <span className="text-[9px] text-slate-500 font-mono font-semibold">Embassy/Bureau</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* 📊 Combined Master Records Archive Card */}
-      <div className="bg-card border border-line rounded-xl shadow-sm overflow-hidden font-sans select-none space-y-4 animate-fade-in" id="combined-master-records-archive-intake">
+      <div className="bg-card border border-slate-300 rounded-xl shadow-md overflow-hidden font-sans select-none space-y-4 animate-fade-in" id="combined-master-records-archive-intake">
         {/* Table Control Header */}
-        <div className="p-5 border-b border-line bg-paper/25 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="p-5 border-b border-slate-300 bg-slate-50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <h3 className="text-sm font-semibold text-ink font-display">Combined Master Records Archive</h3>
-            <p className="text-[11px] text-muted font-sans pt-0.5">
-              Showing <span className="font-semibold text-accent">{sortedMasterWorkers.length}</span> of <span className="font-semibold">{recruiterWorkers.length}</span> matching rows
+            <h3 className="text-sm font-bold text-slate-900 font-display">Combined Master Records Archive</h3>
+            <p className="text-[11px] text-slate-600 font-sans pt-0.5 font-medium">
+              Showing <span className="font-extrabold text-indigo-700">{sortedMasterWorkers.length}</span> of <span className="font-bold text-slate-800">{recruiterWorkers.length}</span> matching rows
             </p>
           </div>
 
           <button
             onClick={handleExportMasterExcel}
-            className="w-full md:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 bg-success-green text-white hover:bg-success-green/90 rounded-lg text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer"
+            className="w-full md:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white hover:bg-success-green/90 rounded-lg text-xs font-mono uppercase tracking-wider font-semibold transition-colors cursor-pointer shadow-sm"
           >
             <Download className="w-3.5 h-3.5" />
             <span>XLS Export Master</span>

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Category, Company, DropdownOption, User, UserRole, ProjectDetail, Worker } from "../types";
+import { Category, Company, DropdownOption, User, UserRole, ProjectDetail, Worker, BureauAllocation, XpactAllocation } from "../types";
 import { 
   Sliders, 
   Layers, 
@@ -63,6 +63,10 @@ interface AdminPanelProps {
   onAddProject?: (newProj: Omit<ProjectDetail, "id"> & { id?: string }) => Promise<boolean>;
   onDeleteProject?: (projectId: string) => Promise<boolean>;
   onSelectProject?: (projectId: string) => Promise<boolean>;
+  bureauAllocations?: BureauAllocation[];
+  xpactAllocations?: XpactAllocation[];
+  onUpdateBureauAllocations: (newAllocs: BureauAllocation[]) => Promise<boolean>;
+  onUpdateXpactAllocations: (newAllocs: XpactAllocation[]) => Promise<boolean>;
 }
 
 export default function AdminPanel({
@@ -83,13 +87,43 @@ export default function AdminPanel({
   onUpdateProjectDetail,
   onAddProject = async () => false,
   onDeleteProject = async () => false,
-  onSelectProject = async () => false
+  onSelectProject = async () => false,
+  bureauAllocations = [],
+  xpactAllocations = [],
+  onUpdateBureauAllocations,
+  onUpdateXpactAllocations
 }: AdminPanelProps) {
   
   // Navigation internal to Admin Settings panel
-  const [activeSubTab, setActiveSubTab] = useState<"project" | "quotas" | "companies" | "dropdowns" | "users" | "gdrive">("project");
+  const [activeSubTab, setActiveSubTab] = useState<"project" | "quotas" | "companies" | "dropdowns" | "users" | "gdrive" | "bureau_xpact">("project");
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+
+  const [localBureau, setLocalBureau] = useState<BureauAllocation[]>([]);
+  const [localXpact, setLocalXpact] = useState<XpactAllocation[]>([]);
+
+  const [newBureauCategory, setNewBureauCategory] = useState("");
+  const [newBureauQty, setNewBureauQty] = useState<string>("");
+  const [newBureauRef, setNewBureauRef] = useState("");
+
+  const [newXpactCategory, setNewXpactCategory] = useState("");
+  const [newXpactQty, setNewXpactQty] = useState<string>("");
+  const [newXpactRef, setNewXpactRef] = useState("");
+
+  const [expandedBureauHistories, setExpandedBureauHistories] = useState<Record<string, boolean>>({});
+  const [expandedXpactHistories, setExpandedXpactHistories] = useState<Record<string, boolean>>({});
+
+  React.useEffect(() => {
+    if (bureauAllocations) {
+      setLocalBureau(bureauAllocations);
+    }
+  }, [bureauAllocations]);
+
+  React.useEffect(() => {
+    if (xpactAllocations) {
+      setLocalXpact(xpactAllocations);
+    }
+  }, [xpactAllocations]);
 
   // States for Google Drive Backup Integrations
   const [gdriveUser, setGdriveUser] = useState<FirebaseUser | null>(null);
@@ -683,6 +717,18 @@ export default function AdminPanel({
         >
           <Cloud className="w-3.5 h-3.5 inline mr-1 text-emerald-500 animate-pulse" />
           Google Drive Backup
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab("bureau_xpact")}
+          className={`px-4 py-2 text-xs font-mono uppercase tracking-wider border-b-2 font-semibold whitespace-nowrap cursor-pointer transition-colors ${
+            activeSubTab === "bureau_xpact"
+              ? "border-accent text-accent"
+              : "border-transparent text-muted hover:text-ink"
+          }`}
+        >
+          <Sliders className="w-3.5 h-3.5 inline mr-1" />
+          Bureau & xpat Allocation
         </button>
 
       </div>
@@ -2196,6 +2242,574 @@ export default function AdminPanel({
               </div>
 
             </div>
+          </div>
+        )}
+
+        {/* SUB 6: BUREAU & XPAT ALLOCATION */}
+        {activeSubTab === "bureau_xpact" && (
+          <div className="space-y-6 animate-fade-in font-sans">
+            
+            {/* Top Info Header */}
+            <div className="bg-card border border-line rounded-xl p-5 shadow-sm space-y-1.5">
+              <h3 className="text-sm font-semibold text-ink font-display flex items-center gap-1.5">
+                <Sliders className="w-4 h-4 text-accent" />
+                <span>Bureau & XPACT Allocation Center</span>
+              </h3>
+              <p className="text-xs text-muted">
+                Manage allocation quotas and quantity requirements for both Bureau alignments and XPACT categories. Quantities can be added time to time under the same category, appending historical reference numbers and addition dates without creating redundant rows.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              
+              {/* TABLE 1: Bureau Allocation */}
+              <div className="bg-card border border-line rounded-xl p-5 shadow-sm space-y-4">
+                <div className="flex justify-between items-center pb-2 border-b border-line/60">
+                  <div>
+                    <h4 className="text-sm font-bold text-ink font-display">Bureau Allocation</h4>
+                    <p className="text-[11px] text-muted">Set targets or quotas for Bureau processing categories.</p>
+                  </div>
+                </div>
+
+                {/* Table display */}
+                <div className="overflow-x-auto min-h-[150px]">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-line text-muted font-mono uppercase text-[10px] tracking-wider font-semibold">
+                        <th className="py-2 w-8 text-center"></th>
+                        <th className="py-2 text-[10px]">Bureau Category</th>
+                        <th className="py-2 w-24 text-right text-[10px]">Total Qty</th>
+                        <th className="py-2 w-28 text-center text-[10px]">Last Ref No</th>
+                        <th className="py-2 text-center w-36 text-[10px]">Saved Date</th>
+                        <th className="py-2 text-right w-16 text-[10px]">Remove</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {localBureau.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-8 text-center text-muted text-xs italic">
+                            No Bureau Allocation categories defined yet. Use the tool below to add.
+                          </td>
+                        </tr>
+                      ) : (
+                        localBureau.map((item, index) => {
+                          const hasHistory = item.additions && item.additions.length > 0;
+                          const isExpanded = !!expandedBureauHistories[item.id];
+                          return (
+                            <React.Fragment key={item.id || index}>
+                              <tr className="border-b border-line/50 hover:bg-paper/30">
+                                <td className="py-2.5 text-center">
+                                  {hasHistory ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setExpandedBureauHistories(prev => ({
+                                          ...prev,
+                                          [item.id]: !prev[item.id]
+                                        }));
+                                      }}
+                                      className="p-1 text-muted hover:text-accent hover:bg-paper rounded transition-all cursor-pointer focus:outline-none"
+                                      title="Show additions history"
+                                    >
+                                      <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? "rotate-90 text-accent" : "rotate-0"}`} />
+                                    </button>
+                                  ) : (
+                                    <span className="inline-block w-3.5 h-3.5" />
+                                  )}
+                                </td>
+                                <td className="py-2.5 font-medium text-ink">
+                                  <input
+                                    type="text"
+                                    value={item.category}
+                                    onChange={(e) => {
+                                      const updated = [...localBureau];
+                                      updated[index].category = e.target.value;
+                                      setLocalBureau(updated);
+                                    }}
+                                    className="bg-transparent border-0 border-b border-transparent focus:border-accent/40 w-full outline-none focus:bg-paper px-1 py-0.5 rounded text-xs"
+                                    placeholder="Edit Category"
+                                  />
+                                </td>
+                                <td className="py-2.5 text-right font-mono font-semibold text-ink">
+                                  <input
+                                    type="number"
+                                    value={item.qty === 0 ? "" : item.qty}
+                                    onChange={(e) => {
+                                      const updated = [...localBureau];
+                                      const val = parseInt(e.target.value);
+                                      updated[index].qty = isNaN(val) ? 0 : val;
+                                      setLocalBureau(updated);
+                                    }}
+                                    className="bg-transparent border border-line/45 focus:border-accent text-right w-20 outline-none focus:bg-paper px-1.5 py-0.5 rounded text-xs font-mono"
+                                    placeholder="Qty"
+                                    min="0"
+                                  />
+                                </td>
+                                <td className="py-2.5 text-center font-mono text-[11px] text-ink">
+                                  {item.ref_no || "—"}
+                                </td>
+                                <td className="py-2.5 text-center text-[10px] text-muted font-mono">
+                                  {item.last_updated || "—"}
+                                </td>
+                                <td className="py-2.5 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = localBureau.filter((_, i) => i !== index);
+                                      setLocalBureau(updated);
+                                    }}
+                                    className="text-muted hover:text-bad p-1 transition-colors rounded hover:bg-red-50 cursor-pointer inline-flex"
+                                    title="Remove row"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                              {isExpanded && hasHistory && (
+                                <tr className="bg-paper/20">
+                                  <td colSpan={6} className="py-2 px-3 border-b border-line/40 rounded-lg">
+                                    <div className="pl-6 pr-4 py-1.5 space-y-1.5">
+                                      <div className="flex justify-between items-center text-[10px] font-mono text-muted uppercase tracking-wider font-bold">
+                                        <span>Additions Registry History:</span>
+                                      </div>
+                                      <div className="border border-line/40 rounded-lg overflow-hidden bg-white max-h-36 overflow-y-auto">
+                                        <table className="w-full text-left text-[11px]">
+                                          <thead>
+                                            <tr className="bg-paper/85 text-[9px] font-mono uppercase tracking-wider text-muted border-b border-line/40">
+                                              <th className="py-1 px-3">Date Added</th>
+                                              <th className="py-1 px-3 text-right">Qty Added</th>
+                                              <th className="py-1 px-3 text-right">Ref Number</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {item.additions!.map((add, ai) => (
+                                              <tr key={ai} className="border-b border-line/20 last:border-b-0 hover:bg-paper/10">
+                                                <td className="py-1 px-3 text-muted font-mono">{add.date}</td>
+                                                <td className="py-1 px-3 text-right text-success-green font-bold font-mono">+{add.qty}</td>
+                                                <td className="py-1 px-3 text-right font-mono text-ink">{add.ref_no || "N/A"}</td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Inline adder form */}
+                <div className="bg-paper p-3 border border-line/60 rounded-xl space-y-3">
+                  <h5 className="text-[10px] font-bold text-muted uppercase tracking-wider">Add or Top-Up Bureau Allocation</h5>
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                    <div className="sm:col-span-5">
+                      <label className="block text-[10px] text-muted mb-1 font-semibold uppercase tracking-wider">Category Name</label>
+                      <input
+                        type="text"
+                        list="bureau-cats-list"
+                        placeholder="e.g. Bangladesh Special"
+                        value={newBureauCategory}
+                        onChange={(e) => setNewBureauCategory(e.target.value)}
+                        className="w-full bg-card border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                      />
+                      <datalist id="bureau-cats-list">
+                        {Array.from(new Set(localBureau.map(b => b.category))).map(cat => (
+                          <option key={cat} value={cat} />
+                        ))}
+                      </datalist>
+                    </div>
+                    <div className="sm:col-span-3">
+                      <label className="block text-[10px] text-muted mb-1 font-semibold uppercase tracking-wider">Adding Qty</label>
+                      <input
+                        type="number"
+                        placeholder="Qty"
+                        value={newBureauQty}
+                        onChange={(e) => setNewBureauQty(e.target.value)}
+                        className="w-full bg-card border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink font-mono"
+                        min="1"
+                      />
+                    </div>
+                    <div className="sm:col-span-4">
+                      <label className="block text-[10px] text-muted mb-1 font-semibold uppercase tracking-wider">Reference Number</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Ref No / Code"
+                        value={newBureauRef}
+                        onChange={(e) => setNewBureauRef(e.target.value)}
+                        className="w-full bg-card border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink font-mono"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newBureauCategory.trim()) {
+                        showError("Please enter or select a category name");
+                        return;
+                      }
+                      const numQty = parseInt(newBureauQty) || 0;
+                      if (numQty <= 0) {
+                        showError("Please enter a valid quantity greater than zero");
+                        return;
+                      }
+
+                      const trimmedCat = newBureauCategory.trim();
+                      const currentRef = newBureauRef.trim() || `REF-${Math.floor(1000 + Math.random() * 9000)}`;
+                      const nowStr = new Date().toLocaleString();
+
+                      const existingIndex = localBureau.findIndex(
+                        b => b.category.trim().toLowerCase() === trimmedCat.toLowerCase()
+                      );
+
+                      if (existingIndex !== -1) {
+                        const updated = [...localBureau];
+                        const target = { ...updated[existingIndex] };
+                        target.qty = (target.qty || 0) + numQty;
+                        target.last_updated = nowStr;
+                        target.ref_no = currentRef;
+                        
+                        if (!target.additions) target.additions = [];
+                        target.additions = [
+                          { qty: numQty, date: nowStr, ref_no: currentRef },
+                          ...target.additions
+                        ];
+                        
+                        updated[existingIndex] = target;
+                        setLocalBureau(updated);
+
+                        setNewBureauCategory("");
+                        setNewBureauQty("");
+                        setNewBureauRef("");
+                        showSuccess(`Increased "${target.category}" quantity by ${numQty} under Ref: ${currentRef}!`);
+                      } else {
+                        const newRow: BureauAllocation = {
+                          id: "bureau-" + Date.now() + Math.random().toString(36).substr(2, 4),
+                          category: trimmedCat,
+                          qty: numQty,
+                          last_updated: nowStr,
+                          ref_no: currentRef,
+                          additions: [
+                            { qty: numQty, date: nowStr, ref_no: currentRef }
+                          ]
+                        };
+                        setLocalBureau([...localBureau, newRow]);
+
+                        setNewBureauCategory("");
+                        setNewBureauQty("");
+                        setNewBureauRef("");
+                        showSuccess(`Created family category "${trimmedCat}" with quantity ${numQty} & Ref: ${currentRef}!`);
+                      }
+                    }}
+                    className="w-full py-1.5 border border-line hover:border-accent hover:bg-accent/5 hover:text-accent font-mono text-[10px] uppercase tracking-wider font-bold rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Apply / Add Quantity Locally
+                  </button>
+                </div>
+
+                {/* Save section */}
+                <div className="pt-3 border-t border-line/60 flex items-center justify-between gap-4">
+                  <div className="text-[10px] text-muted leading-relaxed">
+                    Time to time additions accumulate inside the existing category. Always hit Save to commit to the server!
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const success = await onUpdateBureauAllocations(localBureau);
+                      if (success) {
+                        showSuccess("Bureau allocations saved successfully with all reference logs intact!");
+                      } else {
+                        showError("Failed to save Bureau allocations.");
+                      }
+                    }}
+                    className="px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded-lg text-xs font-mono uppercase tracking-wider font-bold transition-colors cursor-pointer shadow-sm shrink-0"
+                  >
+                    Save Bureau Allocations
+                  </button>
+                </div>
+              </div>
+
+              {/* TABLE 2: XPACT QUTA Allocation */}
+              <div className="bg-card border border-line rounded-xl p-5 shadow-sm space-y-4">
+                <div className="flex justify-between items-center pb-2 border-b border-line/60">
+                  <div>
+                    <h4 className="text-sm font-bold text-ink font-display">XPACT QUTA Allocation</h4>
+                    <p className="text-[11px] text-muted">Manage allocations and targets for XPACT categories.</p>
+                  </div>
+                </div>
+
+                {/* Table display */}
+                <div className="overflow-x-auto min-h-[150px]">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-line text-muted font-mono uppercase text-[10px] tracking-wider font-semibold">
+                        <th className="py-2 w-8 text-center"></th>
+                        <th className="py-2 text-[10px]">XPACT Category</th>
+                        <th className="py-2 w-24 text-right text-[10px]">Total Qty</th>
+                        <th className="py-2 w-28 text-center text-[10px]">Last Ref No</th>
+                        <th className="py-2 text-center w-36 text-[10px]">Saved Date</th>
+                        <th className="py-2 text-right w-16 text-[10px]">Remove</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {localXpact.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-8 text-center text-muted text-xs italic">
+                            No XPACT Quota Allocation categories defined yet. Use the tool below to add.
+                          </td>
+                        </tr>
+                      ) : (
+                        localXpact.map((item, index) => {
+                          const hasHistory = item.additions && item.additions.length > 0;
+                          const isExpanded = !!expandedXpactHistories[item.id];
+                          return (
+                            <React.Fragment key={item.id || index}>
+                              <tr className="border-b border-line/50 hover:bg-paper/30">
+                                <td className="py-2.5 text-center">
+                                  {hasHistory ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setExpandedXpactHistories(prev => ({
+                                          ...prev,
+                                          [item.id]: !prev[item.id]
+                                        }));
+                                      }}
+                                      className="p-1 text-muted hover:text-accent hover:bg-paper rounded transition-all cursor-pointer focus:outline-none"
+                                      title="Show additions history"
+                                    >
+                                      <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? "rotate-90 text-accent" : "rotate-0"}`} />
+                                    </button>
+                                  ) : (
+                                    <span className="inline-block w-3.5 h-3.5" />
+                                  )}
+                                </td>
+                                <td className="py-2.5 font-medium text-ink">
+                                  <input
+                                    type="text"
+                                    value={item.category}
+                                    onChange={(e) => {
+                                      const updated = [...localXpact];
+                                      updated[index].category = e.target.value;
+                                      setLocalXpact(updated);
+                                    }}
+                                    className="bg-transparent border-0 border-b border-transparent focus:border-accent/40 w-full outline-none focus:bg-paper px-1 py-0.5 rounded text-xs"
+                                    placeholder="Edit Category"
+                                  />
+                                </td>
+                                <td className="py-2.5 text-right font-mono font-semibold text-ink">
+                                  <input
+                                    type="number"
+                                    value={item.qty === 0 ? "" : item.qty}
+                                    onChange={(e) => {
+                                      const updated = [...localXpact];
+                                      const val = parseInt(e.target.value);
+                                      updated[index].qty = isNaN(val) ? 0 : val;
+                                      setLocalXpact(updated);
+                                    }}
+                                    className="bg-transparent border border-line/45 focus:border-accent text-right w-20 outline-none focus:bg-paper px-1.5 py-0.5 rounded text-xs font-mono"
+                                    placeholder="Qty"
+                                    min="0"
+                                  />
+                                </td>
+                                <td className="py-2.5 text-center font-mono text-[11px] text-ink">
+                                  {item.ref_no || "—"}
+                                </td>
+                                <td className="py-2.5 text-center text-[10px] text-muted font-mono">
+                                  {item.last_updated || "—"}
+                                </td>
+                                <td className="py-2.5 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = localXpact.filter((_, i) => i !== index);
+                                      setLocalXpact(updated);
+                                    }}
+                                    className="text-muted hover:text-bad p-1 transition-colors rounded hover:bg-red-50 cursor-pointer inline-flex"
+                                    title="Remove row"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                              {isExpanded && hasHistory && (
+                                <tr className="bg-paper/20">
+                                  <td colSpan={6} className="py-2 px-3 border-b border-line/40 rounded-lg">
+                                    <div className="pl-6 pr-4 py-1.5 space-y-1.5">
+                                      <div className="flex justify-between items-center text-[10px] font-mono text-muted uppercase tracking-wider font-bold">
+                                        <span>Additions Registry History:</span>
+                                      </div>
+                                      <div className="border border-line/40 rounded-lg overflow-hidden bg-white max-h-36 overflow-y-auto">
+                                        <table className="w-full text-left text-[11px]">
+                                          <thead>
+                                            <tr className="bg-paper/85 text-[9px] font-mono uppercase tracking-wider text-muted border-b border-line/40">
+                                              <th className="py-1 px-3">Date Added</th>
+                                              <th className="py-1 px-3 text-right">Qty Added</th>
+                                              <th className="py-1 px-3 text-right">Ref Number</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {item.additions!.map((add, ai) => (
+                                              <tr key={ai} className="border-b border-line/20 last:border-b-0 hover:bg-paper/10">
+                                                <td className="py-1 px-3 text-muted font-mono">{add.date}</td>
+                                                <td className="py-1 px-3 text-right text-success-green font-bold font-mono">+{add.qty}</td>
+                                                <td className="py-1 px-3 text-right font-mono text-ink">{add.ref_no || "N/A"}</td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Inline adder form */}
+                <div className="bg-paper p-3 border border-line/60 rounded-xl space-y-3">
+                  <h5 className="text-[10px] font-bold text-muted uppercase tracking-wider">Add or Top-Up XPACT Quota</h5>
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                    <div className="sm:col-span-5">
+                      <label className="block text-[10px] text-muted mb-1 font-semibold uppercase tracking-wider">Category Name</label>
+                      <input
+                        type="text"
+                        list="xpact-cats-list"
+                        placeholder="e.g. Professional Visa EP1"
+                        value={newXpactCategory}
+                        onChange={(e) => setNewXpactCategory(e.target.value)}
+                        className="w-full bg-card border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                      />
+                      <datalist id="xpact-cats-list">
+                        {Array.from(new Set(localXpact.map(x => x.category))).map(cat => (
+                          <option key={cat} value={cat} />
+                        ))}
+                      </datalist>
+                    </div>
+                    <div className="sm:col-span-3">
+                      <label className="block text-[10px] text-muted mb-1 font-semibold uppercase tracking-wider">Adding Qty</label>
+                      <input
+                        type="number"
+                        placeholder="Qty"
+                        value={newXpactQty}
+                        onChange={(e) => setNewXpactQty(e.target.value)}
+                        className="w-full bg-card border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink font-mono"
+                        min="1"
+                      />
+                    </div>
+                    <div className="sm:col-span-4">
+                      <label className="block text-[10px] text-muted mb-1 font-semibold uppercase tracking-wider">Reference Number</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Ref No / Code"
+                        value={newXpactRef}
+                        onChange={(e) => setNewXpactRef(e.target.value)}
+                        className="w-full bg-card border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink font-mono"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newXpactCategory.trim()) {
+                        showError("Please enter or select a category name");
+                        return;
+                      }
+                      const numQty = parseInt(newXpactQty) || 0;
+                      if (numQty <= 0) {
+                        showError("Please enter a valid quantity greater than zero");
+                        return;
+                      }
+
+                      const trimmedCat = newXpactCategory.trim();
+                      const currentRef = newXpactRef.trim() || `REF-${Math.floor(1000 + Math.random() * 9000)}`;
+                      const nowStr = new Date().toLocaleString();
+
+                      const existingIndex = localXpact.findIndex(
+                        x => x.category.trim().toLowerCase() === trimmedCat.toLowerCase()
+                      );
+
+                      if (existingIndex !== -1) {
+                        const updated = [...localXpact];
+                        const target = { ...updated[existingIndex] };
+                        target.qty = (target.qty || 0) + numQty;
+                        target.last_updated = nowStr;
+                        target.ref_no = currentRef;
+                        
+                        if (!target.additions) target.additions = [];
+                        target.additions = [
+                          { qty: numQty, date: nowStr, ref_no: currentRef },
+                          ...target.additions
+                        ];
+                        
+                        updated[existingIndex] = target;
+                        setLocalXpact(updated);
+
+                        setNewXpactCategory("");
+                        setNewXpactQty("");
+                        setNewXpactRef("");
+                        showSuccess(`Increased "${target.category}" quantity by ${numQty} under Ref: ${currentRef}!`);
+                      } else {
+                        const newRow: XpactAllocation = {
+                          id: "xpact-" + Date.now() + Math.random().toString(36).substr(2, 4),
+                          category: trimmedCat,
+                          qty: numQty,
+                          last_updated: nowStr,
+                          ref_no: currentRef,
+                          additions: [
+                            { qty: numQty, date: nowStr, ref_no: currentRef }
+                          ]
+                        };
+                        setLocalXpact([...localXpact, newRow]);
+
+                        setNewXpactCategory("");
+                        setNewXpactQty("");
+                        setNewXpactRef("");
+                        showSuccess(`Created family category "${trimmedCat}" with quantity ${numQty} & Ref: ${currentRef}!`);
+                      }
+                    }}
+                    className="w-full py-1.5 border border-line hover:border-accent hover:bg-accent/5 hover:text-accent font-mono text-[10px] uppercase tracking-wider font-bold rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Apply / Add Quantity Locally
+                  </button>
+                </div>
+
+                {/* Save section */}
+                <div className="pt-3 border-t border-line/60 flex items-center justify-between gap-4">
+                  <div className="text-[10px] text-muted">
+                    Save updates to record reference additions instantly.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const success = await onUpdateXpactAllocations(localXpact);
+                      if (success) {
+                        showSuccess("XPACT allocations saved successfully with all logs!");
+                      } else {
+                        showError("Failed to save XPACT allocations.");
+                      }
+                    }}
+                    className="px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded-lg text-xs font-mono uppercase tracking-wider font-bold transition-colors cursor-pointer shadow-sm shrink-0"
+                  >
+                    Save XPACT Allocations
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
           </div>
         )}
 

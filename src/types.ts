@@ -77,6 +77,30 @@ export interface SystemNotification {
   associated_company?: string;
 }
 
+export interface AllocationAddition {
+  qty: number;
+  date: string;
+  ref_no: string;
+}
+
+export interface BureauAllocation {
+  id: string;
+  category: string;
+  qty: number;
+  last_updated: string;
+  ref_no?: string;
+  additions?: AllocationAddition[];
+}
+
+export interface XpactAllocation {
+  id: string;
+  category: string;
+  qty: number;
+  last_updated: string;
+  ref_no?: string;
+  additions?: AllocationAddition[];
+}
+
 export interface DbState {
   workers: Worker[];
   categories: Category[];
@@ -87,4 +111,6 @@ export interface DbState {
   projects?: ProjectDetail[];
   selected_project_id?: string;
   notifications?: SystemNotification[];
+  bureau_allocations?: BureauAllocation[];
+  xpact_allocations?: XpactAllocation[];
 }

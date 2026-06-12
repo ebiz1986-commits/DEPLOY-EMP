@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { UserRole, Worker, Category, Company, DropdownOption, User, ProjectDetail, SystemNotification } from "./types";
+import { UserRole, Worker, Category, Company, DropdownOption, User, ProjectDetail, SystemNotification, BureauAllocation, XpactAllocation } from "./types";
 import Navbar from "./components/Navbar";
 import LoginView from "./components/LoginView";
 import DashboardView from "./components/DashboardView";
@@ -28,6 +28,8 @@ export default function App() {
   const [dbLoading, setDbLoading] = useState(true);
   const [notifications, setNotifications] = useState<SystemNotification[]>([]);
   const [activeBroadcastToasts, setActiveBroadcastToasts] = useState<SystemNotification[]>([]);
+  const [bureauAllocations, setBureauAllocations] = useState<BureauAllocation[]>([]);
+  const [xpactAllocations, setXpactAllocations] = useState<XpactAllocation[]>([]);
 
   // Compute allowed projects based on user profile focus permissions
   const visibleProjects = React.useMemo(() => {
@@ -98,6 +100,8 @@ export default function App() {
         setProjects(data.projects || []);
         setSelectedProjectId(data.selected_project_id || "");
         setNotifications(data.notifications || []);
+        setBureauAllocations(data.bureau_allocations || []);
+        setXpactAllocations(data.xpact_allocations || []);
 
         // Keep active session user in perfect sync with updated database definition
         const cached = localStorage.getItem("ksj_session");
@@ -430,6 +434,40 @@ export default function App() {
     }
   };
 
+  const handleUpdateBureauAllocations = async (newAlloc: BureauAllocation[]) => {
+    try {
+      const res = await fetch("/api/config/update-bureau-allocations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newAlloc)
+      });
+      if (res.ok) {
+        await fetchDbState();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const handleUpdateXpactAllocations = async (newAlloc: XpactAllocation[]) => {
+    try {
+      const res = await fetch("/api/config/update-xpact-allocations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newAlloc)
+      });
+      if (res.ok) {
+        await fetchDbState();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  };
+
   const handleAddUser = async (newUser: User) => {
     try {
       const res = await fetch("/api/config/add-user", {
@@ -590,6 +628,10 @@ export default function App() {
             onAddProject={handleAddProject}
             onDeleteProject={handleDeleteProject}
             onSelectProject={handleSelectProject}
+            bureauAllocations={bureauAllocations}
+            xpactAllocations={xpactAllocations}
+            onUpdateBureauAllocations={handleUpdateBureauAllocations}
+            onUpdateXpactAllocations={handleUpdateXpactAllocations}
           />
         );
       default:
