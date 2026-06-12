@@ -400,7 +400,7 @@ export default function RecruiterIntakeView({
 
     const incomplete = cleanRows.find(r => !r.name.trim() || !r.passport.trim() || !r.category || !r.supply_company);
     if (incomplete) {
-      setErrorMessage("Every worker registered requires a Name, Passport, and a valid Job Category.");
+      setErrorMessage("Every worker registered requires a Name, Passport, and a valid Actual Job Category.");
       return;
     }
 
@@ -581,7 +581,7 @@ export default function RecruiterIntakeView({
       "No.": idx + 1,
       "Worker Name": w.name,
       "Passport Number": w.passport,
-      "Job Category": w.category,
+      "Actual Job Category": w.category,
       "Supply Company": w.supply_company,
       "Pipeline State": w.state.toUpperCase(),
       "Visa Approved Date": w.visa_doc_date || "Pending",
@@ -778,7 +778,7 @@ export default function RecruiterIntakeView({
                     <th className="p-3 border-r border-slate-200">Worker Full Name</th>
                     <th className="p-3 border-r border-slate-200">Passport Number</th>
                     <th className="p-3 border-r border-slate-200">Nationality</th>
-                    <th className="p-3 border-r border-slate-200">Job Category</th>
+                    <th className="p-3 border-r border-slate-200">Actual Job Category</th>
                     <th className="p-3 border-r border-slate-200">Doc Link / URL <span className="text-slate-500 text-[8px] font-sans lowercase italic font-normal">(optional)</span></th>
                     <th className="p-3 w-12 text-center">Delete</th>
                   </tr>
@@ -877,7 +877,7 @@ export default function RecruiterIntakeView({
                             }`}
                             required
                           >
-                            <option value="">-- Select Category --</option>
+                            <option value="">-- Select Actual Job Category --</option>
                             {categories.map(c => (
                               <option key={c.id} value={c.name}>{c.name}</option>
                             ))}
@@ -1747,7 +1747,7 @@ export default function RecruiterIntakeView({
               <tr>
                 <th className="p-3 pl-5">Worker Candidate Name</th>
                 <th className="p-3">Passport Number</th>
-                <th className="p-3">Job Category</th>
+                <th className="p-3">Actual Job Category</th>
                 <th className="p-3">Gate / Visa Status</th>
                 <th className="p-3">Bureau Clearance</th>
                 <th className="p-3">Departure Progress</th>

@@ -308,7 +308,7 @@ export default function EngineerApprovalsView({
               <tr className="bg-paper/35 border-b border-line/60 font-mono text-muted text-[10px] uppercase select-none">
                 <th className="p-3 pl-5">Intake Name</th>
                 <th className="p-3">Passport No.</th>
-                <th className="p-3">Job Category</th>
+                <th className="p-3">Actual Job Category</th>
                 <th className="p-3">Associated Supply Agency</th>
                 <th className="p-3">Active Vacancy Counter</th>
                 <th className="p-3">Sending Batch Declaration</th>

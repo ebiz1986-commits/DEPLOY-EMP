@@ -91,7 +91,7 @@ export const uploadOrUpdateMasterFile = async (
       "No.": idx + 1,
       "Worker Name": w.name,
       "Passport Number": w.passport,
-      "Job Category": w.category,
+      "Actual Job Category": w.category,
       "Supply Company": w.supply_company,
       "Pipeline State": w.state.toUpperCase(),
       "Visa Approved Date": w.visa_doc_date || "Pending",
