@@ -7,16 +7,82 @@
   --font-serif: "Fraunces", serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  --color-ink: #0f172a;           /* deep slate 900 */
-  --color-paper: #f8fafc;         /* slate 50 */
+  --color-ink: #000000;           /* pure black */
+  --color-paper: #f1f5f9;         /* slightly darker slate 100 for better light background contrast */
   --color-card: #ffffff;          /* solid white */
-  --color-line: #e2e8f0;          /* slate 200 */
-  --color-accent: #4f46e5;        /* indigo 600 */
-  --color-success-green: #059669; /* emerald 600 */
-  --color-gold: #d97706;          /* amber 600 */
-  --color-bad: #e11d48;           /* rose 600 */
-  --color-info: #0284c7;          /* sky 600 */
-  --color-muted: #64748b;         /* slate 500 */
+  --color-line: #1e293b;          /* slate 800 for extremely prominent, high-contrast border and division lines */
+  --color-accent: #1e1b4b;        /* indigo 950 for deep prominent brand color */
+  --color-success-green: #022c22; /* emerald 950 for exceptionally dark clear success indicators */
+  --color-gold: #451a03;          /* amber 950 for high contrast deep gold status */
+  --color-bad: #4c0519;           /* rose 950 for dark clear alerts */
+  --color-info: #082f49;          /* sky 950 for high contrast info panels */
+  --color-muted: #000000;         /* pure black for supreme legibility on second-level text */
+
+  /* Redefining standard colors for absolute maximum contrast, high-visibility borders and pure black text/fonts */
+  --color-slate-50: #f1f5f9;
+  --color-slate-100: #cbd5e1;
+  --color-slate-150: #94a3b8;
+  --color-slate-200: #475569;     /* Deep slate border color */
+  --color-slate-250: #334155;     /* Darker slate borders */
+  --color-slate-300: #1e293b;     /* Very dark slate borders */
+  --color-slate-350: #0f172a;     /* Pure slate charcoal border */
+  --color-slate-400: #000000;     /* Pure Black Font */
+  --color-slate-500: #000000;     /* Pure Black Font */
+  --color-slate-600: #000000;     /* Pure Black Font */
+  --color-slate-700: #000000;     /* Pure Black Font */
+  --color-slate-800: #000000;     /* Pure Black Font */
+  --color-slate-905: #000000;     /* Pure Black Font */
+  --color-slate-900: #000000;     /* Pure Black Font */
+  --color-slate-950: #000000;     /* Pure Black Font */
+
+  --color-stone-50: #f5f5f4;
+  --color-stone-100: #e7e5e4;
+  --color-stone-200: #57534e;     /* Deep stone border color */
+  --color-stone-250: #44403c;     /* Darker stone borders */
+  --color-stone-300: #292524;     /* Very dark stone border */
+  --color-stone-400: #000000;     /* Pure Black Font */
+  --color-stone-500: #000000;     /* Pure Black Font */
+  --color-stone-600: #000000;     /* Pure Black Font */
+  --color-stone-700: #000000;     /* Pure Black Font */
+  --color-stone-800: #000000;     /* Pure Black Font */
+  --color-stone-900: #000000;     /* Pure Black Font */
+  --color-stone-950: #000000;     /* Pure Black Font */
+
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #4b5563;      /* Deep gray border color */
+  --color-gray-300: #374151;      /* Darker gray borders */
+  --color-gray-400: #000000;      /* Pure Black Font */
+  --color-gray-500: #000000;      /* Pure Black Font */
+  --color-gray-600: #000000;      /* Pure Black Font */
+  --color-gray-700: #000000;      /* Pure Black Font */
+  --color-gray-800: #000000;      /* Pure Black Font */
+  --color-gray-900: #000000;      /* Pure Black Font */
+  --color-gray-950: #000000;      /* Pure Black Font */
+
+  --color-zinc-50: #fafafa;
+  --color-zinc-100: #f4f4f5;
+  --color-zinc-200: #52525b;      /* Deep zinc border color */
+  --color-zinc-300: #3f3f46;      /* Darker zinc borders */
+  --color-zinc-400: #000000;      /* Pure Black Font */
+  --color-zinc-500: #000000;      /* Pure Black Font */
+  --color-zinc-600: #000000;      /* Pure Black Font */
+  --color-zinc-700: #000000;      /* Pure Black Font */
+  --color-zinc-800: #000000;      /* Pure Black Font */
+  --color-zinc-900: #000000;      /* Pure Black Font */
+  --color-zinc-950: #000000;      /* Pure Black Font */
+
+  --color-neutral-50: #fafafa;
+  --color-neutral-100: #f5f5f5;
+  --color-neutral-200: #525252;   /* Deep neutral border color */
+  --color-neutral-300: #404040;   /* Darker neutral borders */
+  --color-neutral-400: #000000;   /* Pure Black Font */
+  --color-neutral-500: #000000;   /* Pure Black Font */
+  --color-neutral-600: #000000;   /* Pure Black Font */
+  --color-neutral-700: #000000;   /* Pure Black Font */
+  --color-neutral-800: #000000;   /* Pure Black Font */
+  --color-neutral-900: #000000;   /* Pure Black Font */
+  --color-neutral-950: #000000;   /* Pure Black Font */
 }
 
 /* Custom Scrollbars */

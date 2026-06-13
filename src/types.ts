@@ -14,6 +14,7 @@ export interface Worker {
   name: string;
   passport: string;
   category: string;
+  bureau_category?: string;
   supply_company: string;
   sending_batch?: string;
   visa_doc_date?: string;

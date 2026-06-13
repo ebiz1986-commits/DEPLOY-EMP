@@ -973,7 +973,8 @@ export default function DashboardView({
               <tr className="bg-paper/40 border-b border-line/60 font-mono text-muted text-[10px] uppercase select-none">
                 <th className="p-3 pl-5">Worker Name</th>
                 <th className="p-3">Passport ID</th>
-                <th className="p-3">Category</th>
+                <th className="p-3">Bureau Category</th>
+                <th className="p-3">Actual Category</th>
                 <th className="p-3 cursor-pointer hover:text-ink transition-colors" onClick={() => toggleSort("supply_company")}>
                   Supply Company {sortField === "supply_company" && (sortOrder === "asc" ? "↑" : "↓")}
                 </th>
@@ -996,7 +997,7 @@ export default function DashboardView({
             <tbody className="divide-y divide-line/40">
               {sortedWorkers.length === 0 ? (
                 <tr>
-                  <td colSpan={currentUser?.role === "admin" ? 13 : 12} className="p-12 text-center text-muted">
+                  <td colSpan={currentUser?.role === "admin" ? 14 : 13} className="p-12 text-center text-muted">
                     <div className="max-w-xs mx-auto space-y-2">
                       <p className="font-semibold text-ink">No matching archives found</p>
                       <p className="text-[11px]">Adjust your company switcher, job category filter, or text inquiry string.</p>
@@ -1017,8 +1018,19 @@ export default function DashboardView({
                       <td className="p-3 font-mono text-[11px] text-ink whitespace-nowrap">
                         {w.passport}
                       </td>
+
+                      {/* Bureau Category */}
+                      <td className="p-3">
+                        {w.bureau_category ? (
+                          <span className="inline-flex items-center px-2 py-0.5 bg-paper rounded border border-line/40 text-[10px] font-medium text-ink">
+                            {w.bureau_category}
+                          </span>
+                        ) : (
+                          <span className="text-stone-400 italic text-[10px] select-none">—</span>
+                        )}
+                      </td>
                       
-                      {/* Category */}
+                      {/* Actual Category */}
                       <td className="p-3">
                         <span className="inline-flex items-center px-2 py-0.5 bg-paper rounded border border-line/40 text-[10px] font-medium text-ink">
                           {w.category}

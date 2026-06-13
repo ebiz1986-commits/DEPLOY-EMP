@@ -2322,9 +2322,20 @@ export default function AdminPanel({
                                     type="text"
                                     value={item.category}
                                     onChange={(e) => {
+                                      const oldName = item.category;
+                                      const newName = e.target.value;
                                       const updated = [...localBureau];
-                                      updated[index].category = e.target.value;
+                                      updated[index].category = newName;
                                       setLocalBureau(updated);
+
+                                      // Sync to XPACT too
+                                      const updatedXpact = localXpact.map(x => {
+                                        if (x.category.trim().toLowerCase() === oldName.trim().toLowerCase()) {
+                                          return { ...x, category: newName };
+                                        }
+                                        return x;
+                                      });
+                                      setLocalXpact(updatedXpact);
                                     }}
                                     className="bg-transparent border-0 border-b border-transparent focus:border-accent/40 w-full outline-none focus:bg-paper px-1 py-0.5 rounded text-xs"
                                     placeholder="Edit Category"
@@ -2337,8 +2348,18 @@ export default function AdminPanel({
                                     onChange={(e) => {
                                       const updated = [...localBureau];
                                       const val = parseInt(e.target.value);
-                                      updated[index].qty = isNaN(val) ? 0 : val;
+                                      const newQty = isNaN(val) ? 0 : val;
+                                      updated[index].qty = newQty;
                                       setLocalBureau(updated);
+
+                                      // Sync to XPACT too
+                                      const updatedXpact = localXpact.map(x => {
+                                        if (x.category.trim().toLowerCase() === item.category.trim().toLowerCase()) {
+                                          return { ...x, qty: newQty };
+                                        }
+                                        return x;
+                                      });
+                                      setLocalXpact(updatedXpact);
                                     }}
                                     className="bg-transparent border border-line/45 focus:border-accent text-right w-20 outline-none focus:bg-paper px-1.5 py-0.5 rounded text-xs font-mono"
                                     placeholder="Qty"
@@ -2357,6 +2378,12 @@ export default function AdminPanel({
                                     onClick={() => {
                                       const updated = localBureau.filter((_, i) => i !== index);
                                       setLocalBureau(updated);
+
+                                      // Sync to XPACT too
+                                      const updatedXpact = localXpact.filter(
+                                        x => x.category.trim().toLowerCase() !== item.category.trim().toLowerCase()
+                                      );
+                                      setLocalXpact(updatedXpact);
                                     }}
                                     className="text-muted hover:text-bad p-1 transition-colors rounded hover:bg-red-50 cursor-pointer inline-flex"
                                     title="Remove row"
@@ -2483,10 +2510,41 @@ export default function AdminPanel({
                         updated[existingIndex] = target;
                         setLocalBureau(updated);
 
+                        // Synchronize to XPACT Category as well
+                        const xpactIndex = localXpact.findIndex(
+                          x => x.category.trim().toLowerCase() === trimmedCat.toLowerCase()
+                        );
+                        if (xpactIndex !== -1) {
+                          const updatedXpact = [...localXpact];
+                          const targetXpact = { ...updatedXpact[xpactIndex] };
+                          targetXpact.qty = (targetXpact.qty || 0) + numQty;
+                          targetXpact.last_updated = nowStr;
+                          targetXpact.ref_no = currentRef;
+                          if (!targetXpact.additions) targetXpact.additions = [];
+                          targetXpact.additions = [
+                            { qty: numQty, date: nowStr, ref_no: currentRef },
+                            ...targetXpact.additions
+                          ];
+                          updatedXpact[xpactIndex] = targetXpact;
+                          setLocalXpact(updatedXpact);
+                        } else {
+                          const newXpactRow: XpactAllocation = {
+                            id: "xpact-" + Date.now() + Math.random().toString(36).substr(2, 4),
+                            category: trimmedCat,
+                            qty: numQty,
+                            last_updated: nowStr,
+                            ref_no: currentRef,
+                            additions: [
+                              { qty: numQty, date: nowStr, ref_no: currentRef }
+                            ]
+                          };
+                          setLocalXpact([...localXpact, newXpactRow]);
+                        }
+
                         setNewBureauCategory("");
                         setNewBureauQty("");
                         setNewBureauRef("");
-                        showSuccess(`Increased "${target.category}" quantity by ${numQty} under Ref: ${currentRef}!`);
+                        showSuccess(`Increased "${target.category}" quantity by ${numQty} inside both Bureau & XPACT under Ref: ${currentRef}!`);
                       } else {
                         const newRow: BureauAllocation = {
                           id: "bureau-" + Date.now() + Math.random().toString(36).substr(2, 4),
@@ -2500,10 +2558,23 @@ export default function AdminPanel({
                         };
                         setLocalBureau([...localBureau, newRow]);
 
+                        // Synchronize to XPACT Category as well
+                        const newXpactRow: XpactAllocation = {
+                          id: "xpact-" + Date.now() + Math.random().toString(36).substr(2, 4),
+                          category: trimmedCat,
+                          qty: numQty,
+                          last_updated: nowStr,
+                          ref_no: currentRef,
+                          additions: [
+                            { qty: numQty, date: nowStr, ref_no: currentRef }
+                          ]
+                        };
+                        setLocalXpact([...localXpact, newXpactRow]);
+
                         setNewBureauCategory("");
                         setNewBureauQty("");
                         setNewBureauRef("");
-                        showSuccess(`Created family category "${trimmedCat}" with quantity ${numQty} & Ref: ${currentRef}!`);
+                        showSuccess(`Created family category "${trimmedCat}" with quantity ${numQty} & Ref: ${currentRef} inside both Bureau & XPACT!`);
                       }
                     }}
                     className="w-full py-1.5 border border-line hover:border-accent hover:bg-accent/5 hover:text-accent font-mono text-[10px] uppercase tracking-wider font-bold rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1"
@@ -2522,8 +2593,11 @@ export default function AdminPanel({
                     type="button"
                     onClick={async () => {
                       const success = await onUpdateBureauAllocations(localBureau);
-                      if (success) {
-                        showSuccess("Bureau allocations saved successfully with all reference logs intact!");
+                      const successXpact = await onUpdateXpactAllocations(localXpact);
+                      if (success && successXpact) {
+                        showSuccess("Bureau and XPACT allocations saved successfully with all reference logs intact!");
+                      } else if (success) {
+                        showSuccess("Bureau allocations saved on the server (XPACT failed).");
                       } else {
                         showError("Failed to save Bureau allocations.");
                       }

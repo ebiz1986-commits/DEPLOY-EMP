@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Category, Company, Worker, DropdownOption, ProjectDetail, User } from "../types";
+import { Category, Company, Worker, DropdownOption, ProjectDetail, User, BureauAllocation, XpactAllocation } from "../types";
 import CompanyFilterHeader from "./CompanyFilterHeader";
 import { 
   ClipboardList, 
@@ -26,6 +26,8 @@ interface OperationsViewProps {
   onRefresh: () => void;
   onUpdateWorker: (id: string, updates: Partial<Worker>) => Promise<boolean>;
   currentUser?: User;
+  bureauAllocations?: BureauAllocation[];
+  xpactAllocations?: XpactAllocation[];
 }
 
 export default function OperationsView({
@@ -38,7 +40,9 @@ export default function OperationsView({
   projectDetail,
   onRefresh,
   onUpdateWorker,
-  currentUser
+  currentUser,
+  bureauAllocations = [],
+  xpactAllocations = []
 }: OperationsViewProps) {
   
   const getDaysWaiting = (createdAtStr?: string, completedAtStr?: string, isCompleted?: boolean) => {
@@ -74,6 +78,18 @@ export default function OperationsView({
   const finalStatusOptions = useMemo(() => {
     return dropdownOptions.filter((o) => o.field === "final_status").map((o) => o.value);
   }, [dropdownOptions]);
+
+  // Compute counts of workers per bureau category (case-insensitive)
+  const bureauAssignmentsCount = useMemo(() => {
+    const counts: Record<string, number> = {};
+    workers.forEach(w => {
+      if (w.bureau_category) {
+        const key = w.bureau_category.trim().toLowerCase();
+        counts[key] = (counts[key] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [workers]);
 
   // Extract category names for headers
   const categoryNames = useMemo(() => {
@@ -212,7 +228,8 @@ export default function OperationsView({
               <tr className="bg-paper/35 border-b border-line/60 font-mono text-muted text-[10px] uppercase">
                 <th className="p-3 pl-5">Worker details</th>
                 <th className="p-3">Passport No</th>
-                <th className="p-3">Category</th>
+                <th className="p-3">Bureau Category</th>
+                <th className="p-3">Actual Job Category</th>
                 <th className="p-3">Doc upload (WA CHECKER)</th>
                 <th className="p-3">Last updated stamp</th>
                 <th className="p-3">Visa Status (xpact)</th>
@@ -224,7 +241,7 @@ export default function OperationsView({
             <tbody className="divide-y divide-line/40">
               {activeWorkers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-12 text-center text-muted">
+                  <td colSpan={9} className="p-12 text-center text-muted">
                     <div className="max-w-xs mx-auto space-y-1.5">
                       <p className="font-semibold text-ink font-display">No active records in selection</p>
                       <p className="text-[11px]">Approved active workers appear here. Or modify filters.</p>
@@ -249,59 +266,36 @@ export default function OperationsView({
                         <div className="text-[10px] text-muted truncate" title={w.supply_company}>{w.supply_company}</div>
 
                         {/* Associated Documents */}
-                        {(w.doc_link || w.bulk_doc_link) && (
-                          <div className="mt-1 flex flex-wrap gap-1 items-center">
-                            {w.doc_link && (
-                              <a
-                                href={w.doc_link.startsWith("http") ? w.doc_link : `https://${w.doc_link}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-0.5 font-mono text-[8px] bg-accent/10 border border-accent/20 hover:bg-accent/15 text-accent px-1 py-0.5 rounded font-semibold transition-all shrink-0"
-                                title="Download Candidate Document URL"
-                              >
-                                <ExternalLink className="w-2 h-2 shrink-0" />
-                                <span>Worker Doc</span>
-                              </a>
-                            )}
-                            {w.bulk_doc_link && (
+                        <div className="mt-1.5">
+                          {w.doc_link ? (
+                            <a
+                              href={w.doc_link.startsWith("http") ? w.doc_link : `https://${w.doc_link}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 font-sans text-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 px-2.5 py-0.5 rounded font-semibold transition-all w-fit cursor-pointer shadow-xs"
+                              title="See Attached Document Link"
+                            >
+                              <ExternalLink className="w-2.5 h-2.5 shrink-0 text-emerald-500" />
+                              <span>See Attached Document Link</span>
+                            </a>
+                          ) : (
+                            <span className="text-[10px] text-stone-400 italic">No document link</span>
+                          )}
+                          
+                          {w.bulk_doc_link && (
+                            <div className="mt-1">
                               <a
                                 href={w.bulk_doc_link.startsWith("http") ? w.bulk_doc_link : `https://${w.bulk_doc_link}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-0.5 font-mono text-[8px] bg-emerald-600/10 border border-emerald-500/20 hover:bg-emerald-600/15 text-emerald-700 px-1 py-0.5 rounded font-semibold transition-all shrink-0"
+                                className="inline-flex items-center gap-1 font-mono text-[8px] bg-indigo-50 border border-indigo-200/50 hover:bg-indigo-100/50 text-indigo-705 px-1.5 py-0.5 rounded font-medium transition-all w-fit cursor-pointer"
                                 title="Download Bulk Folder"
                               >
-                                <FolderOpen className="w-2 h-2 shrink-0" />
-                                <span>Bulk (Batch)</span>
+                                <FolderOpen className="w-2 h-2 shrink-0 text-indigo-500" />
+                                <span>Bulk Folder</span>
                               </a>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Inline Document Link update for Coordinator */}
-                        <div className="mt-1">
-                          <input
-                            type="text"
-                            placeholder="Set Doc Link..."
-                            defaultValue={w.doc_link || ""}
-                            onBlur={async (e) => {
-                              const newVal = e.target.value.trim();
-                              if (newVal !== (w.doc_link || "")) {
-                                await onUpdateWorker(w.id, { doc_link: newVal });
-                              }
-                            }}
-                            onKeyDown={async (e) => {
-                              if (e.key === "Enter") {
-                                const newVal = (e.target as HTMLInputElement).value.trim();
-                                if (newVal !== (w.doc_link || "")) {
-                                  await onUpdateWorker(w.id, { doc_link: newVal });
-                                }
-                                (e.target as HTMLInputElement).blur();
-                              }
-                            }}
-                            className="bg-paper/30 text-[9px] border border-line/45 focus:border-accent rounded px-1.5 py-0.5 outline-none font-mono text-muted focus:text-ink w-24 focus:w-36 transition-all"
-                            title="Set reference URL to candidate file"
-                          />
+                            </div>
+                          )}
                         </div>
                       </td>
 
@@ -310,7 +304,64 @@ export default function OperationsView({
                         {w.passport}
                       </td>
 
-                      {/* Category */}
+                      {/* Bureau Category */}
+                      <td className="p-3 min-w-[195px]">
+                        <div className="flex flex-col gap-1.5 justify-center max-w-[210px]">
+                          <select
+                            value={w.bureau_category || ""}
+                            onChange={async (e) => {
+                              const newVal = e.target.value;
+                              await onUpdateWorker(w.id, { bureau_category: newVal });
+                            }}
+                            disabled={currentUser?.role === "viewer"}
+                            className="bg-paper/30 text-[11px] border border-line/45 focus:border-accent rounded px-2 py-1 outline-none font-mono text-ink focus:text-ink w-full cursor-pointer disabled:cursor-not-allowed"
+                            title="Select Bureau Category"
+                          >
+                            <option value="">-- Select Bureau Category --</option>
+                            {bureauAllocations.map((ba) => (
+                              <option key={ba.id} value={ba.category}>
+                                {ba.category}
+                              </option>
+                            ))}
+                          </select>
+
+                          {/* Selected Category remaining stats info label */}
+                          {w.bureau_category && (() => {
+                            const selectedCat = w.bureau_category;
+                            const ba = bureauAllocations.find(
+                              b => b.category.trim().toLowerCase() === selectedCat.trim().toLowerCase()
+                            );
+                            const count = bureauAssignmentsCount[selectedCat.trim().toLowerCase()] || 0;
+                            const bureauRemaining = ba ? ba.qty - count : 0;
+
+                            const xa = xpactAllocations.find(
+                              x => x.category.trim().toLowerCase() === selectedCat.trim().toLowerCase()
+                            );
+                            const xpactRemaining = xa ? xa.qty - count : null;
+
+                            return (
+                              <div className="flex flex-wrap gap-1.5 mt-1 text-[10px] font-mono leading-none select-none">
+                                <span className={`px-2 py-1 rounded border-2 font-bold ${
+                                  bureauRemaining < 1 
+                                    ? "bg-red-100 text-red-950 border-red-700 font-extrabold" 
+                                    : "bg-emerald-100/40 text-emerald-950 border-emerald-600"
+                                }`}>
+                                  Remaining Bureau ; {bureauRemaining}
+                                </span>
+                                <span className={`px-2 py-1 rounded border-2 font-bold ${
+                                  xpactRemaining !== null && xpactRemaining < 1
+                                    ? "bg-red-100 text-red-950 border-red-700 font-extrabold"
+                                    : "bg-indigo-100/40 text-indigo-950 border-indigo-600"
+                                }`}>
+                                  xpact :{xpactRemaining ?? 0}
+                                </span>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </td>
+
+                      {/* Actual Job Category */}
                       <td className="p-3">
                         <span className="px-2 py-0.5 bg-paper border border-line/40 text-[10px] text-ink rounded font-semibold whitespace-nowrap">
                           {w.category}

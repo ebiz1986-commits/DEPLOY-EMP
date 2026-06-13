@@ -1747,6 +1747,7 @@ export default function RecruiterIntakeView({
               <tr>
                 <th className="p-3 pl-5">Worker Candidate Name</th>
                 <th className="p-3">Passport Number</th>
+                <th className="p-3">Bureau Category</th>
                 <th className="p-3">Actual Job Category</th>
                 <th className="p-3">Gate / Visa Status</th>
                 <th className="p-3">Bureau Clearance</th>
@@ -1760,7 +1761,7 @@ export default function RecruiterIntakeView({
             <tbody className="divide-y divide-line/45">
               {filteredFeed.length === 0 ? (
                 <tr>
-                  <td colSpan={currentUser?.role === "admin" ? 8 : 7} className="p-10 text-center text-muted text-xs">
+                  <td colSpan={currentUser?.role === "admin" ? 9 : 8} className="p-10 text-center text-muted text-xs">
                     No matching candidates found inside your data feed. Clear filters or add new workers above.
                   </td>
                 </tr>
@@ -1862,6 +1863,17 @@ export default function RecruiterIntakeView({
                       {/* Passport */}
                       <td className="p-3 font-mono text-xs font-semibold text-ink">
                         {w.passport}
+                      </td>
+
+                      {/* Bureau Category */}
+                      <td className="p-3">
+                        {w.bureau_category ? (
+                          <span className="px-2 py-0.5 bg-paper border border-line text-xs font-medium rounded-md text-ink">
+                            {w.bureau_category}
+                          </span>
+                        ) : (
+                          <span className="text-stone-400 italic text-[10px] select-none">—</span>
+                        )}
                       </td>
 
                       {/* Category */}

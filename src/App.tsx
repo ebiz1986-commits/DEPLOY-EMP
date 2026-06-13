@@ -605,6 +605,8 @@ export default function App() {
             onRefresh={fetchDbState}
             onUpdateWorker={handleUpdateWorker}
             currentUser={user}
+            bureauAllocations={bureauAllocations}
+            xpactAllocations={xpactAllocations}
           />
         );
       case "admin":
