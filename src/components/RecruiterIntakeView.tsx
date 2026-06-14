@@ -19,7 +19,8 @@ import {
   FolderOpen,
   ExternalLink,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Plane
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -470,6 +471,14 @@ export default function RecruiterIntakeView({
       return true;
     });
   }, [workers, bureauSearch, activeSupplyCompany]);
+
+  const pendingBureauWorkers = useMemo(() => {
+    return bureauQueue.filter((w) => w.bureau !== "Complete");
+  }, [bureauQueue]);
+
+  const readyForDepartureWorkers = useMemo(() => {
+    return bureauQueue.filter((w) => w.bureau === "Complete");
+  }, [bureauQueue]);
 
   const pendingBureauCount = useMemo(() => {
     return bureauQueue.filter(w => w.bureau === "Pending").length;
@@ -1077,185 +1086,391 @@ export default function RecruiterIntakeView({
               </div>
             </div>
           </div>
-
-          {/* List display */}
-          <div className="flex-1 overflow-y-auto space-y-3.5 max-h-[420px] pr-1.5 scrollbar-thin">
-            {bureauQueue.length === 0 ? (
-              <div className="p-8 text-center border-2 border-dashed border-slate-250 bg-slate-50 rounded-lg text-slate-500 text-xs font-semibold">
-                <p className="font-bold text-slate-805">Bureau pending is clear</p>
-                <p className="text-[10px] mt-1 text-slate-400">Awaiting worker status updates to &quot;Visa Approved (xpact)&quot;.</p>
+          {/* Two-Column Layout for Bureau Pending List vs Ready for Departure List */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Box 1: Bureau Pending List */}
+            <div className="flex flex-col bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 shadow-2xs">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="text-xs font-bold font-display text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
+                  Bureau Pending List
+                </span>
+                <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300 rounded-full shrink-0">
+                  {pendingBureauWorkers.length} Pending
+                </span>
               </div>
-            ) : (
-              bureauQueue.map((w, index) => {
-                const isCleared = w.bureau === "Complete";
-                const isRejected = w.bureau === "Reject";
-                const isExpanded = !!expandedBureauWorkers[w.id];
 
-                return (
-                  <div 
-                    key={w.id} 
-                    className="border-2 border-slate-250 bg-slate-50/90 shadow-xs rounded-xl hover:shadow-md hover:border-indigo-400 focus-within:border-indigo-400 transition-all duration-200 flex flex-col text-xs leading-relaxed"
-                  >
-                    {/* Compact Header row */}
-                    <div className="p-3 flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
-                      {/* Index & Basic details */}
-                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        {/* Serial Number Badge */}
-                        <span className="shrink-0 flex items-center justify-center font-mono font-extrabold text-[11px] w-6.5 h-6.5 bg-indigo-100 border-2 border-indigo-300 text-indigo-950 rounded-lg shadow-2xs">
-                          {index + 1}
-                        </span>
-                        
-                        <div className="min-w-0">
-                          {/* Name (Compact typography) */}
-                          <div className="font-display font-extrabold text-slate-900 text-[13.5px] truncate select-all">{w.name}</div>
-                          <div className="font-mono text-[10px] font-bold text-slate-600 tracking-wide truncate">
-                            {w.passport} &nbsp;⬩&nbsp; {w.category}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Right column: Status waiting badge, Quick actions and Toggle */}
-                      <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
-                        {/* Compact Bureau Waiting Duration */}
-                        {w.bureau === "Pending" && (
-                          <span className="px-2.5 py-1 font-mono text-[9.5px] font-extrabold text-rose-950 bg-rose-100 border border-rose-300 rounded-md shadow-2xs" title="Active waiting duration in Bureau queue">
-                            {(() => {
-                              const baseDateStr = w.bureau_pending_at || w.last_updated || w.created_at;
-                              if (!baseDateStr) return "0 d";
-                              const baseTime = new Date(baseDateStr).getTime();
-                              const now = new Date().getTime();
-                              const diffTime = now - baseTime;
-                              const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-                              return `${Math.max(0, days)} days waiting`;
-                            })()}
-                          </span>
-                        )}
-
-                        {/* Compact Arrival Waiting Duration */}
-                        {w.bureau === "Complete" && w.final_status !== "Arrived" && (
-                          <span className="px-2.5 py-1 font-mono text-[9.5px] font-extrabold text-indigo-955 bg-indigo-100 border border-indigo-300 rounded-md shadow-2xs" title="Waiting for Arrival">
-                            Waiting Arrival
-                          </span>
-                        )}
-
-                        {/* Quick Action Decision pill (Complete / Reject buttons) */}
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            disabled={w.bureau !== "Pending"}
-                            onClick={() => handleBureauAction(w.id, "Complete")}
-                            className={`px-3 py-1.5 text-[9.5px] font-bold font-mono rounded uppercase tracking-tight transition-all border-2 cursor-pointer shadow-2xs ${
-                              isCleared 
-                                ? "bg-emerald-600 text-white border-emerald-600" 
-                                : "bg-white text-emerald-800 hover:bg-emerald-50 border-emerald-500"
-                            } ${w.bureau !== "Pending" ? "opacity-35 cursor-not-allowed" : "cursor-pointer"}`}
-                            title="Complete bureau action"
-                          >
-                            Complete
-                          </button>
-                          
-                          <button
-                            disabled={w.bureau !== "Pending"}
-                            onClick={() => handleBureauAction(w.id, "Reject")}
-                            className={`px-3 py-1.5 text-[9.5px] font-bold font-mono rounded uppercase tracking-tight transition-all border-2 cursor-pointer shadow-2xs ${
-                              isRejected 
-                                ? "bg-rose-600 text-white border-rose-600" 
-                                : "bg-white text-rose-800 hover:bg-rose-50 border-rose-400"
-                            } ${w.bureau !== "Pending" ? "opacity-35 cursor-not-allowed" : "cursor-pointer"}`}
-                            title="Reject bureau action"
-                          >
-                            Reject
-                          </button>
-                        </div>
-
-                        {/* Dropdown toggle Chevron */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setExpandedBureauWorkers(prev => ({
-                              ...prev,
-                              [w.id]: !prev[w.id]
-                            }));
-                          }}
-                          className="p-1 px-1.5 hover:bg-slate-200 rounded-lg transition text-slate-700 hover:text-slate-900 border border-slate-350 cursor-pointer shadow-2xs"
-                          title={isExpanded ? "Collapse Details" : "Expand Details"}
-                        >
-                          {isExpanded ? (
-                            <ChevronUp className="w-4 h-4" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Collapsible Details Panel */}
-                    {isExpanded && (
-                      <div className="px-3.5 pb-3.5 pt-2.5 border-t-2 border-dashed border-slate-300 bg-slate-100 rounded-b-lg flex flex-col gap-2.5 animate-fade-in text-xs text-slate-900 font-semibold shadow-inner">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10.5px]">
-                          <div>
-                            <span className="text-[9px] uppercase font-bold text-slate-500 block tracking-wider">Supply Company</span>
-                            <span className="font-bold text-slate-800 leading-normal block truncate">{w.supply_company}</span>
-                          </div>
-
-                          <div>
-                            <span className="text-[9px] uppercase font-bold text-slate-500 block tracking-wider">Registered Since</span>
-                            <span className="font-mono text-slate-700 font-bold block">
-                              {w.created_at ? new Date(w.created_at).toLocaleDateString() : "Pending"}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Expandable Document Download Section */}
-                        {(w.doc_link || w.bulk_doc_link) && (
-                          <div className="mt-1 pb-1 flex flex-wrap gap-2 items-center border-t border-slate-300/80 pt-2">
-                            {w.doc_link && (
-                              <a
-                                href={w.doc_link.startsWith("http") ? w.doc_link : `https://${w.doc_link}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1.5 font-mono text-[9.5px] bg-indigo-50 border-2 border-indigo-200 hover:bg-indigo-100 text-indigo-900 px-2.5 py-1 rounded font-bold transition shrink-0 shadow-2xs"
-                                title="Download Candidate Document"
-                              >
-                                <ExternalLink className="w-3 h-3 shrink-0 stroke-[2.5]" />
-                                <span>Worker Doc</span>
-                              </a>
-                            )}
-                            {w.bulk_doc_link && (
-                              <a
-                                href={w.bulk_doc_link.startsWith("http") ? w.bulk_doc_link : `https://${w.bulk_doc_link}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1.5 font-mono text-[9.5px] bg-emerald-50 border-2 border-emerald-200 hover:bg-emerald-100 text-emerald-950 px-2.5 py-1 rounded font-bold transition shrink-0 shadow-2xs"
-                                title="Download Bulk Batch Folder"
-                              >
-                                <FolderOpen className="w-3 h-3 shrink-0 stroke-[2.5]" />
-                                <span>Bulk Folder</span>
-                              </a>
-                            )}
-                          </div>
-                        )}
-                        
-                        {/* Helper explanation details */}
-                        <div className="text-[9.5px] text-slate-650 bg-white/70 p-2 rounded-lg border border-slate-300 leading-snug">
-                          Waiting duration tracker:{" "}
-                          <strong className="text-slate-800">
-                            {(() => {
-                              const baseDateStr = w.bureau_pending_at || w.last_updated || w.created_at;
-                              if (!baseDateStr) return "0 Days";
-                              const baseTime = new Date(baseDateStr).getTime();
-                              const now = new Date().getTime();
-                              const diffTime = now - baseTime;
-                              const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-                              return `${days} Days active since coordinator marked approved.`;
-                            })()}
-                          </strong>
-                        </div>
-                      </div>
-                    )}
+              <div className="flex-1 overflow-y-auto space-y-3.5 max-h-[420px] pr-1.5 scrollbar-thin">
+                {pendingBureauWorkers.length === 0 ? (
+                  <div className="p-8 text-center border-2 border-dashed border-slate-200 bg-white rounded-lg text-slate-500 text-xs font-semibold my-2">
+                    <p className="font-bold text-slate-700">Bureau pending is clear</p>
+                    <p className="text-[10px] mt-1 text-slate-400">Awaiting worker status updates to &quot;Visa Approved (xpact)&quot;.</p>
                   </div>
-                );
-              })
-            )}
+                ) : (
+                  pendingBureauWorkers.map((w, index) => {
+                    const isCleared = w.bureau === "Complete";
+                    const isRejected = w.bureau === "Reject";
+                    const isExpanded = !!expandedBureauWorkers[w.id];
+
+                    return (
+                      <div 
+                        key={w.id} 
+                        className="border-2 border-slate-250 bg-white shadow-3xs rounded-xl hover:shadow-sm hover:border-indigo-400 focus-within:border-indigo-400 transition-all duration-200 flex flex-col text-xs leading-relaxed"
+                      >
+                        {/* Compact Header row */}
+                        <div className="p-3 flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+                          {/* Index & Basic details */}
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            {/* Serial Number Badge */}
+                            <span className="shrink-0 flex items-center justify-center font-mono font-extrabold text-[11px] w-6.5 h-6.5 bg-indigo-50 border-2 border-indigo-200 text-indigo-950 rounded-lg shadow-3xs">
+                              {index + 1}
+                            </span>
+                            
+                            <div className="min-w-0">
+                              {/* Name (Compact typography) */}
+                              <div className="font-display font-extrabold text-slate-900 text-[13px] truncate select-all">{w.name}</div>
+                              <div className="font-mono text-[10px] font-bold text-slate-500 tracking-wide truncate">
+                                {w.passport} &nbsp;⬩&nbsp; {w.category}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right column: Status waiting badge, Quick actions and Toggle */}
+                          <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
+                            {/* Compact Bureau Waiting Duration */}
+                            {w.bureau === "Pending" && (
+                              <span className="px-2.5 py-1 font-mono text-[9.5px] font-extrabold text-rose-950 bg-rose-100 border border-rose-300 rounded-md shadow-3xs" title="Active waiting duration in Bureau queue">
+                                {(() => {
+                                  const baseDateStr = w.bureau_pending_at || w.last_updated || w.created_at;
+                                  if (!baseDateStr) return "0 d";
+                                  const baseTime = new Date(baseDateStr).getTime();
+                                  const now = new Date().getTime();
+                                  const diffTime = now - baseTime;
+                                  const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                                  return `${Math.max(0, days)} days waiting`;
+                                })()}
+                              </span>
+                            )}
+
+                            {/* Compact Arrival Waiting Duration */}
+                            {w.bureau === "Complete" && w.final_status !== "Arrived" && (
+                              <span className="px-2.5 py-1 font-mono text-[9.5px] font-extrabold text-indigo-955 bg-indigo-50 border border-indigo-300 rounded-md shadow-3xs" title="Waiting for Arrival">
+                                Waiting Arrival
+                              </span>
+                            )}
+
+                            {/* Quick Action Decision pill (Complete / Reject buttons) */}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                disabled={w.bureau !== "Pending"}
+                                onClick={() => handleBureauAction(w.id, "Complete")}
+                                className={`px-2.5 py-1 text-[9px] font-bold font-mono rounded uppercase tracking-tight transition-all border-2 cursor-pointer shadow-3xs ${
+                                  isCleared 
+                                    ? "bg-emerald-600 text-white border-emerald-600" 
+                                    : "bg-white text-emerald-800 hover:bg-emerald-50 border-emerald-500"
+                                } ${w.bureau !== "Pending" ? "opacity-35 cursor-not-allowed" : "cursor-pointer"}`}
+                                title="Complete bureau action"
+                              >
+                                Complete
+                              </button>
+                              
+                              <button
+                                disabled={w.bureau !== "Pending"}
+                                onClick={() => handleBureauAction(w.id, "Reject")}
+                                className={`px-2.5 py-1 text-[9px] font-bold font-mono rounded uppercase tracking-tight transition-all border-2 cursor-pointer shadow-3xs ${
+                                  isRejected 
+                                    ? "bg-rose-600 text-white border-rose-600" 
+                                    : "bg-white text-rose-800 hover:bg-rose-50 border-rose-400"
+                                } ${w.bureau !== "Pending" ? "opacity-35 cursor-not-allowed" : "cursor-pointer"}`}
+                                title="Reject bureau action"
+                              >
+                                Reject
+                              </button>
+                            </div>
+
+                            {/* Dropdown toggle Chevron */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExpandedBureauWorkers(prev => ({
+                                  ...prev,
+                                  [w.id]: !prev[w.id]
+                                }));
+                              }}
+                              className="p-1 px-1.5 hover:bg-slate-200 rounded-lg transition text-slate-700 hover:text-slate-900 border border-slate-350 cursor-pointer shadow-3xs"
+                              title={isExpanded ? "Collapse Details" : "Expand Details"}
+                            >
+                              {isExpanded ? (
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              ) : (
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Collapsible Details Panel */}
+                        {isExpanded && (
+                          <div className="px-3.5 pb-3.5 pt-2.5 border-t-2 border-dashed border-slate-300 bg-slate-50 rounded-b-lg flex flex-col gap-2.5 animate-fade-in text-xs text-slate-900 font-semibold shadow-inner">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10.5px]">
+                              <div>
+                                <span className="text-[9px] uppercase font-bold text-slate-500 block tracking-wider">Supply Company</span>
+                                <span className="font-bold text-slate-800 leading-normal block truncate">{w.supply_company}</span>
+                              </div>
+
+                              <div>
+                                <span className="text-[9px] uppercase font-bold text-slate-500 block tracking-wider">Registered Since</span>
+                                <span className="font-mono text-slate-700 font-bold block">
+                                  {w.created_at ? new Date(w.created_at).toLocaleDateString() : "Pending"}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Expandable Document Download Section */}
+                            {(w.doc_link || w.bulk_doc_link) && (
+                              <div className="mt-1 pb-1 flex flex-wrap gap-2 items-center border-t border-slate-300/80 pt-2">
+                                {w.doc_link && (
+                                  <a
+                                    href={w.doc_link.startsWith("http") ? w.doc_link : `https://${w.doc_link}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 font-mono text-[9.5px] bg-indigo-50 border-2 border-indigo-200 hover:bg-indigo-100 text-indigo-900 px-2.5 py-1 rounded font-bold transition shrink-0 shadow-3xs"
+                                    title="Download Candidate Document"
+                                  >
+                                    <ExternalLink className="w-3 h-3 shrink-0 stroke-[2.5]" />
+                                    <span>Worker Doc</span>
+                                  </a>
+                                )}
+                                {w.bulk_doc_link && (
+                                  <a
+                                    href={w.bulk_doc_link.startsWith("http") ? w.bulk_doc_link : `https://${w.bulk_doc_link}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 font-mono text-[9.5px] bg-emerald-50 border-2 border-emerald-200 hover:bg-emerald-100 text-emerald-950 px-2.5 py-1 rounded font-bold transition shrink-0 shadow-3xs"
+                                    title="Download Bulk Batch Folder"
+                                  >
+                                    <FolderOpen className="w-3 h-3 shrink-0 stroke-[2.5]" />
+                                    <span>Bulk Folder</span>
+                                  </a>
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* Helper explanation details */}
+                            <div className="text-[9.5px] text-slate-650 bg-white/70 p-2 rounded-lg border border-slate-250 leading-snug">
+                              Waiting duration tracker:{" "}
+                              <strong className="text-slate-800">
+                                {(() => {
+                                  const baseDateStr = w.bureau_pending_at || w.last_updated || w.created_at;
+                                  if (!baseDateStr) return "0 Days";
+                                  const baseTime = new Date(baseDateStr).getTime();
+                                  const now = new Date().getTime();
+                                  const diffTime = now - baseTime;
+                                  const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                                  return `${days} Days active since coordinator marked approved.`;
+                                })()}
+                              </strong>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Box 2: Ready for Departure List */}
+            <div className="flex flex-col bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 shadow-2xs">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="text-xs font-bold font-display text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
+                  <Plane className="w-3.5 h-3.5 text-emerald-600 animate-pulse shrink-0" />
+                  Ready for Departure List
+                </span>
+                <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-full shrink-0">
+                  {readyForDepartureWorkers.length} Ready
+                </span>
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-3.5 max-h-[420px] pr-1.5 scrollbar-thin">
+                {readyForDepartureWorkers.length === 0 ? (
+                  <div className="p-8 text-center border-2 border-dashed border-slate-200 bg-white rounded-lg text-slate-500 text-xs font-semibold my-2">
+                    <p className="font-bold text-slate-700">Ready for Departure is clear</p>
+                    <p className="text-[10px] mt-1 text-slate-400">Workers cleared from Bureau queue will automatically stream here.</p>
+                  </div>
+                ) : (
+                  readyForDepartureWorkers.map((w, index) => {
+                    const isCleared = w.bureau === "Complete";
+                    const isRejected = w.bureau === "Reject";
+                    const isExpanded = !!expandedBureauWorkers[w.id];
+
+                    return (
+                      <div 
+                        key={w.id} 
+                        className="border-2 border-slate-205 bg-white shadow-3xs rounded-xl hover:shadow-sm hover:border-indigo-400 focus-within:border-indigo-400 transition-all duration-200 flex flex-col text-xs leading-relaxed"
+                      >
+                        {/* Compact Header row */}
+                        <div className="p-3 flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+                          {/* Index & Basic details */}
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            {/* Serial Number Badge */}
+                            <span className="shrink-0 flex items-center justify-center font-mono font-extrabold text-[11px] w-6.5 h-6.5 bg-emerald-50 border-2 border-emerald-200 text-emerald-950 rounded-lg shadow-3xs">
+                              {index + 1}
+                            </span>
+                            
+                            <div className="min-w-0">
+                              {/* Name (Compact typography) */}
+                              <div className="font-display font-extrabold text-slate-900 text-[13px] truncate select-all">{w.name}</div>
+                              <div className="font-mono text-[10px] font-bold text-slate-500 tracking-wide truncate">
+                                {w.passport} &nbsp;⬩&nbsp; {w.category}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right column: Status waiting badge, Quick actions and Toggle */}
+                          <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
+                            {/* Compact Bureau Waiting Duration */}
+                            {w.bureau === "Pending" && (
+                              <span className="px-2.5 py-1 font-mono text-[9.5px] font-extrabold text-rose-955 bg-rose-100 border border-rose-300 rounded-md shadow-3xs" title="Active waiting duration in Bureau queue">
+                                {(() => {
+                                  const baseDateStr = w.bureau_pending_at || w.last_updated || w.created_at;
+                                  if (!baseDateStr) return "0 d";
+                                  const baseTime = new Date(baseDateStr).getTime();
+                                  const now = new Date().getTime();
+                                  const diffTime = now - baseTime;
+                                  const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                                  return `${Math.max(0, days)} days waiting`;
+                                })()}
+                              </span>
+                            )}
+
+                            {/* Compact Arrival Waiting Duration */}
+                            {w.bureau === "Complete" && w.final_status !== "Arrived" && (
+                              <span className="px-2.5 py-1 font-mono text-[9.5px] font-extrabold text-indigo-955 bg-indigo-50 border border-indigo-300 rounded-md shadow-3xs" title="Waiting for Arrival">
+                                Waiting Arrival
+                              </span>
+                            )}
+
+                            {/* Quick Action Decision pill (Complete / Reject buttons) */}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                disabled={w.bureau !== "Pending"}
+                                onClick={() => handleBureauAction(w.id, "Complete")}
+                                className={`px-2.5 py-1 text-[9px] font-bold font-mono rounded uppercase tracking-tight transition-all border-2 cursor-pointer shadow-3xs ${
+                                  isCleared 
+                                    ? "bg-emerald-600 text-white border-emerald-600" 
+                                    : "bg-white text-emerald-800 hover:bg-emerald-50 border-emerald-500"
+                                } ${w.bureau !== "Pending" ? "opacity-35 cursor-not-allowed" : "cursor-pointer"}`}
+                                title="Complete bureau action"
+                              >
+                                Complete
+                              </button>
+                              
+                              <button
+                                disabled={w.bureau !== "Pending"}
+                                onClick={() => handleBureauAction(w.id, "Reject")}
+                                className={`px-2.5 py-1 text-[9px] font-bold font-mono rounded uppercase tracking-tight transition-all border-2 cursor-pointer shadow-3xs ${
+                                  isRejected 
+                                    ? "bg-rose-600 text-white border-rose-600" 
+                                    : "bg-white text-rose-800 hover:bg-rose-50 border-rose-400"
+                                } ${w.bureau !== "Pending" ? "opacity-35 cursor-not-allowed" : "cursor-pointer"}`}
+                                title="Reject bureau action"
+                              >
+                                Reject
+                              </button>
+                            </div>
+
+                            {/* Dropdown toggle Chevron */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExpandedBureauWorkers(prev => ({
+                                  ...prev,
+                                  [w.id]: !prev[w.id]
+                                }));
+                              }}
+                              className="p-1 px-1.5 hover:bg-slate-200 rounded-lg transition text-slate-700 hover:text-slate-900 border border-slate-350 cursor-pointer shadow-3xs"
+                              title={isExpanded ? "Collapse Details" : "Expand Details"}
+                            >
+                              {isExpanded ? (
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              ) : (
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Collapsible Details Panel */}
+                        {isExpanded && (
+                          <div className="px-3.5 pb-3.5 pt-2.5 border-t-2 border-dashed border-slate-300 bg-slate-50 rounded-b-lg flex flex-col gap-2.5 animate-fade-in text-xs text-slate-900 font-semibold shadow-inner">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10.5px]">
+                              <div>
+                                <span className="text-[9px] uppercase font-bold text-slate-500 block tracking-wider">Supply Company</span>
+                                <span className="font-bold text-slate-800 leading-normal block truncate">{w.supply_company}</span>
+                              </div>
+
+                              <div>
+                                <span className="text-[9px] uppercase font-bold text-slate-500 block tracking-wider">Registered Since</span>
+                                <span className="font-mono text-slate-700 font-bold block">
+                                  {w.created_at ? new Date(w.created_at).toLocaleDateString() : "Pending"}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Expandable Document Download Section */}
+                            {(w.doc_link || w.bulk_doc_link) && (
+                              <div className="mt-1 pb-1 flex flex-wrap gap-2 items-center border-t border-slate-300/80 pt-2">
+                                {w.doc_link && (
+                                  <a
+                                    href={w.doc_link.startsWith("http") ? w.doc_link : `https://${w.doc_link}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 font-mono text-[9.5px] bg-indigo-50 border-2 border-indigo-200 hover:bg-indigo-100 text-indigo-900 px-2.5 py-1 rounded font-bold transition shrink-0 shadow-3xs"
+                                    title="Download Candidate Document"
+                                  >
+                                    <ExternalLink className="w-3 h-3 shrink-0 stroke-[2.5]" />
+                                    <span>Worker Doc</span>
+                                  </a>
+                                )}
+                                {w.bulk_doc_link && (
+                                  <a
+                                    href={w.bulk_doc_link.startsWith("http") ? w.bulk_doc_link : `https://${w.bulk_doc_link}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 font-mono text-[9.5px] bg-emerald-50 border-2 border-emerald-200 hover:bg-emerald-100 text-emerald-950 px-2.5 py-1 rounded font-bold transition shrink-0 shadow-3xs"
+                                    title="Download Bulk Batch Folder"
+                                  >
+                                    <FolderOpen className="w-3 h-3 shrink-0 stroke-[2.5]" />
+                                    <span>Bulk Folder</span>
+                                  </a>
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* Helper explanation details */}
+                            <div className="text-[9.5px] text-slate-650 bg-white/70 p-2 rounded-lg border border-slate-250 leading-snug">
+                              Waiting duration tracker:{" "}
+                              <strong className="text-slate-800">
+                                {(() => {
+                                  const baseDateStr = w.bureau_pending_at || w.last_updated || w.created_at;
+                                  if (!baseDateStr) return "0 Days";
+                                  const baseTime = new Date(baseDateStr).getTime();
+                                  const now = new Date().getTime();
+                                  const diffTime = now - baseTime;
+                                  const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                                  return `${days} Days active since coordinator marked approved.`;
+                                })()}
+                              </strong>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="p-3 bg-indigo-50 border border-indigo-105 rounded-lg text-[10px] leading-relaxed text-indigo-800">
@@ -1348,317 +1563,6 @@ export default function RecruiterIntakeView({
         </div>
       </div>
 
-      {/* 📊 Combined Master Records Archive Card */}
-      <div className="bg-card border border-slate-300 rounded-xl shadow-md overflow-hidden font-sans select-none space-y-4 animate-fade-in" id="combined-master-records-archive-intake">
-        {/* Table Control Header */}
-        <div className="p-5 border-b border-slate-300 bg-slate-50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900 font-display">Combined Master Records Archive</h3>
-            <p className="text-[11px] text-slate-600 font-sans pt-0.5 font-medium">
-              Showing <span className="font-extrabold text-indigo-700">{sortedMasterWorkers.length}</span> of <span className="font-bold text-slate-800">{recruiterWorkers.length}</span> matching rows
-            </p>
-          </div>
-
-          <button
-            onClick={handleExportMasterExcel}
-            className="w-full md:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white hover:bg-success-green/90 rounded-lg text-xs font-mono uppercase tracking-wider font-semibold transition-colors cursor-pointer shadow-sm"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>XLS Export Master</span>
-          </button>
-        </div>
-
-        {/* Filters and Search controls */}
-        <div className="px-5 py-2 flex flex-col sm:flex-row gap-3 items-center justify-between bg-paper/10">
-          <div className="relative w-full sm:w-72">
-            <input
-              type="text"
-              placeholder="Search master name or passport..."
-              value={masterSearch}
-              onChange={(e) => setMasterSearch(e.target.value)}
-              className="w-full text-xs bg-paper border border-line rounded-lg py-2 pl-9 pr-4 text-ink focus:border-accent outline-none font-mono"
-            />
-            <Search className="w-3.5 h-3.5 text-muted absolute left-3 top-3.5" />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-            {/* If Admin, they can filter by Supply Company */}
-            {currentUser?.role !== "recruiter" && (
-              <div className="flex items-center gap-1.5 text-xs">
-                <span className="text-muted text-[11px] font-mono">Company:</span>
-                <select
-                  value={masterCompanyFilter}
-                  onChange={(e) => setMasterCompanyFilter(e.target.value)}
-                  className="bg-paper border border-line rounded-md px-2 py-1 text-xs outline-none cursor-pointer text-ink font-semibold"
-                >
-                  <option value="All">All Companies</option>
-                  {companies.map(co => (
-                    <option key={co.id} value={co.name}>{co.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Category filter */}
-            <div className="flex items-center gap-1.5 text-xs">
-              <span className="text-muted text-[11px] font-mono">Category:</span>
-              <select
-                value={masterCategoryFilter}
-                onChange={(e) => setMasterCategoryFilter(e.target.value)}
-                className="bg-paper border border-line rounded-md px-2 py-1 text-xs outline-none cursor-pointer text-ink font-semibold"
-              >
-                <option value="All">All types</option>
-                {categories.map(c => (
-                  <option key={c.id} value={c.name}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Responsive Table Scroll Container */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-paper/40 border-b border-line/60 font-mono text-muted text-[9px] uppercase select-none">
-                <th className="p-3 pl-5 cursor-pointer hover:text-ink transition-colors font-semibold" onClick={() => toggleMasterSort("name")}>
-                  Worker Name {masterSortField === "name" && (masterSortOrder === "asc" ? "↑" : "↓")}
-                </th>
-                <th className="p-3 cursor-pointer hover:text-ink transition-colors font-semibold" onClick={() => toggleMasterSort("passport")}>
-                  Passport ID {masterSortField === "passport" && (masterSortOrder === "asc" ? "↑" : "↓")}
-                </th>
-                <th className="p-3 cursor-pointer hover:text-ink transition-colors font-semibold" onClick={() => toggleMasterSort("category")}>
-                  Category {masterSortField === "category" && (masterSortOrder === "asc" ? "↑" : "↓")}
-                </th>
-                <th className="p-3 cursor-pointer hover:text-ink transition-colors font-semibold" onClick={() => toggleMasterSort("supply_company")}>
-                  Supply Company {masterSortField === "supply_company" && (masterSortOrder === "asc" ? "↑" : "↓")}
-                </th>
-                <th className="p-3 font-semibold">Engineer Action</th>
-                <th className="p-3 font-semibold">Gate / Visa Status</th>
-                <th className="p-3 font-semibold">Batch / Approved</th>
-                <th className="p-3 font-semibold">WA doc</th>
-                <th className="p-3 font-semibold">Visa XPact status</th>
-                <th className="p-3 font-semibold">Bureau status</th>
-                <th className="p-3 font-semibold">Final status</th>
-                <th className="p-3 pr-5 text-right cursor-pointer hover:text-ink transition-colors font-semibold" onClick={() => toggleMasterSort("created_at")}>
-                  Created Date {masterSortField === "created_at" && (masterSortOrder === "asc" ? "↑" : "↓")}
-                </th>
-              </tr>
-            </thead>
-            
-            <tbody className="divide-y divide-line/45">
-              {sortedMasterWorkers.length === 0 ? (
-                <tr>
-                  <td colSpan={12} className="p-12 text-center text-muted">
-                    <div className="max-w-xs mx-auto space-y-2">
-                      <p className="font-semibold text-ink text-xs">No matching archives found</p>
-                      <p className="text-[11px]">Adjust your job category filter or text search inquiry.</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                sortedMasterWorkers.map((w) => {
-                  return (
-                    <tr key={w.id} className="hover:bg-paper/20 transition-colors">
-                      {/* Name */}
-                      <td className="p-3 pl-5 font-semibold text-ink font-display truncate max-w-[150px]">
-                        {w.name}
-                      </td>
-                      
-                      {/* Passport */}
-                      <td className="p-3 font-mono text-[11px] text-ink whitespace-nowrap">
-                        {w.passport}
-                      </td>
-                      
-                      {/* Category */}
-                      <td className="p-3">
-                        <span className="inline-flex items-center px-2 py-0.5 bg-paper rounded border border-line/40 text-[10px] font-medium text-ink">
-                          {w.category}
-                        </span>
-                      </td>
-                      
-                      {/* Supply Company */}
-                      <td className="p-3 text-muted truncate max-w-[140px]">
-                        {w.supply_company}
-                      </td>
-
-                      {/* Engineer Action */}
-                      <td className="p-3">
-                        {w.state === "active" ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-success-green/10 text-success-green border border-success-green/20 text-[10px] font-mono font-bold rounded-md">
-                            AUTHORIZED
-                          </span>
-                        ) : w.state === "held" ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/15 text-amber-600 border border-amber-500/20 text-[10px] font-mono font-bold rounded-md">
-                            HOLD
-                          </span>
-                        ) : w.state === "rejected" ? (
-                          <div className="space-y-1">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-bad/10 text-bad border border-bad/20 text-[10px] font-mono font-bold rounded-md">
-                              REJECTED
-                            </span>
-                            {w.gate_reject_reason && (
-                              <div className="text-[9px] font-sans font-medium text-bad bg-[#FEF2F2] border border-bad/15 rounded px-1.5 py-0.5 leading-tight max-w-[130px] break-words">
-                                <span className="font-extrabold text-[8px] text-bad block uppercase tracking-wider">Gate Reject Reason:</span>
-                                {w.gate_reject_reason}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-paper text-muted border border-line/60 text-[10px] font-mono font-semibold rounded-md">
-                            AWAITING GATE
-                          </span>
-                        )}
-                      </td>
-                      
-                      {/* State (Gate / Visa Status) */}
-                      <td className="p-3">
-                        {w.state === "held" ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 font-mono bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
-                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
-                            ON HOLD
-                          </span>
-                        ) : w.state === "rejected" ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-bad font-mono bg-bad/10 px-2 py-0.5 rounded-full border border-bad/20">
-                            <span className="h-1.5 w-1.5 rounded-full bg-bad"></span>
-                            REJECTED
-                          </span>
-                        ) : w.state === "pending" ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-gold font-mono bg-gold/15 px-2 py-0.5 rounded-full border border-gold/20">
-                            <span className="h-1.5 w-1.5 rounded-full bg-gold"></span>
-                            PENDING
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-success-green font-mono bg-success-green/15 px-2 py-0.5 rounded-full border border-success-green/20">
-                            <span className="h-1.5 w-1.5 rounded-full bg-success-green animate-pulse"></span>
-                            ACTIVE
-                          </span>
-                        )}
-                      </td>
-                      
-                      {/* Batch & Approvals */}
-                      <td className="p-3 font-mono text-[10px] text-muted">
-                        {w.state === "active" ? (
-                          <div className="leading-normal">
-                            <span className="text-ink font-medium">{w.sending_batch || "Direct"}</span>
-                            <span className="block text-[9px] text-[#8a8175]">{w.visa_doc_date}</span>
-                          </div>
-                        ) : w.state === "held" ? (
-                          <span className="text-amber-600 font-semibold italic text-[10px]">Gate Hold</span>
-                        ) : w.state === "rejected" ? (
-                          <span className="text-bad font-semibold italic text-[10px]">Gate Reject</span>
-                        ) : (
-                          <span className="italic text-[10px]">Awaiting Gate</span>
-                        )}
-                      </td>
-                      
-                      {/* WhatsApp document */}
-                      <td className="p-3">
-                        {(() => {
-                          const docValue = w.doc_upload_wa === "No" ? "Pending" : w.doc_upload_wa;
-                          const isCompleted = docValue === "Yes";
-                          const completedDate = w.doc_upload_wa_date || w.last_updated;
-                          const getDaysLocal = (createdAtStr?: string) => {
-                            if (!createdAtStr) return null;
-                            try {
-                              const createdDate = new Date(createdAtStr);
-                              const endDate = isCompleted && completedDate ? new Date(completedDate) : new Date();
-                              const diffTime = endDate.getTime() - createdDate.getTime();
-                              const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-                              return diffDays < 0 ? 0 : diffDays;
-                            } catch (e) {
-                              return null;
-                            }
-                          };
-                          const days = getDaysLocal(w.created_at);
-                          return (
-                            <div className="flex flex-col gap-0.5">
-                              <span className={`inline-block px-1.5 py-0.5 font-mono text-[10px] rounded w-fit ${
-                                docValue === "Yes" 
-                                  ? "bg-success-green/10 text-success-green border border-success-green/20" 
-                                  : docValue === "Rejected"
-                                  ? "bg-red-50 text-bad border border-bad/20 font-semibold"
-                                  : "bg-amber-50 text-amber-700 border border-amber-200 font-semibold"
-                              }`}>
-                                {docValue}
-                              </span>
-                              {days !== null && (
-                                <span className="block text-[9.5px] text-[#8a8175] font-mono mt-0.5" title={isCompleted ? "Duration from record creation to WA upload" : "Active waiting time since record creation"}>
-                                  {isCompleted ? `Took ${days} d` : `Waiting ${days} d`}
-                                </span>
-                              )}
-                              
-                              {(docValue === "Rejected" || docValue === "No") && w.wa_doc_reject_reason && (
-                                <div className="mt-1 text-[9px] font-sans font-medium text-bad bg-[#FEF2F2] border border-bad/15 rounded px-1.5 py-0.5 leading-tight max-w-[130px] break-words">
-                                  <span className="font-extrabold text-[8px] text-bad block uppercase tracking-wider">Reject Reason:</span>
-                                  {w.wa_doc_reject_reason}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </td>
-                      
-                      {/* Status */}
-                      <td className="p-3 font-medium">
-                        <span className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-mono border ${
-                          w.status === "Visa Approved (xpact)"
-                            ? "bg-success-green/10 text-success-green border-success-green/35"
-                            : w.status === "Visa Reject (xpact)"
-                            ? "bg-bad/10 text-bad border-bad/35"
-                            : "bg-neutral-50 text-muted border-line/50"
-                        }`}>
-                          {w.status || "Pending"}
-                        </span>
-                        <span className="block text-[9px] text-[#8a8175] font-mono mt-0.5" title="Visa Status Change Date">
-                          {w.status_date || (w.created_at ? w.created_at.split("T")[0] : "—")}
-                        </span>
-                      </td>
-                      
-                      {/* Bureau */}
-                      <td className="p-3 font-medium">
-                        <span className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-mono border ${
-                          w.bureau === "Complete"
-                            ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                            : w.bureau === "Reject"
-                            ? "bg-red-50 text-red-700 border-red-200"
-                            : "bg-neutral-50 text-muted border-line/50"
-                        }`}>
-                          {w.bureau || "Pending"}
-                        </span>
-                        <span className="block text-[9px] text-[#8a8175] font-mono mt-0.5" title="Bureau Change Date">
-                          {w.bureau_date || (w.bureau_completed_at ? w.bureau_completed_at.split("T")[0] : (w.created_at ? w.created_at.split("T")[0] : "—"))}
-                        </span>
-                      </td>
-                      
-                      {/* Final Status */}
-                      <td className="p-3 font-medium">
-                        <span className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-mono border ${
-                          w.final_status === "Arrived"
-                            ? "bg-emerald-50 text-emerald-800 border-emerald-250 font-semibold"
-                            : w.final_status === "Booked"
-                            ? "bg-sky-50 text-sky-800 border-sky-100"
-                            : "bg-neutral-50 text-muted border-line/50"
-                        }`}>
-                          {w.final_status || "Pending"}
-                        </span>
-                        <span className="block text-[9px] text-[#8a8175] font-mono mt-0.5" title="Final Placement Change Date">
-                          {w.final_status_date || (w.created_at ? w.created_at.split("T")[0] : "—")}
-                        </span>
-                      </td>
-                      
-                      {/* Created date */}
-                      <td className="p-3 pr-5 text-right font-mono text-[10px] text-muted whitespace-nowrap">
-                        {new Date(w.created_at).toLocaleDateString()}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
 
       {/* Recruiter Candidates Live Data Feed Section */}
       <div className="bg-card border border-line rounded-xl shadow-sm overflow-hidden font-sans space-y-4">
