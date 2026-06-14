@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Zero-Trust Default Deny Catch-All
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Explicit path allowed specifically for the server persistence storage
+    match /state_store/master {
+      allow read, write: if true;
+    }
+  }
+}

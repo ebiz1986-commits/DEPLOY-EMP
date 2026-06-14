@@ -2,10 +2,73 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
+import { initializeApp } from "firebase/app";
+import { getFirestore, doc, getDoc, setDoc, initializeFirestore } from "firebase/firestore";
 import { DbState, Worker, Category, Company, DropdownOption, User, UserRole } from "./src/types";
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const DB_FILE = process.env.DB_PATH || path.join(process.cwd(), "db.json");
+
+// Initialize Firebase SDK Client for persistence
+let firestoreDb: any = null;
+try {
+  const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
+  if (fs.existsSync(firebaseConfigPath)) {
+    const configContent = fs.readFileSync(firebaseConfigPath, "utf8");
+    const firebaseConfig = JSON.parse(configContent);
+    const fbApp = initializeApp(firebaseConfig);
+    // Use initializeFirestore with long polling to avoid GRPC connection resets on the backend
+    firestoreDb = initializeFirestore(fbApp, {
+      experimentalForceLongPolling: true
+    });
+    console.log("Firestore successfully initialized on Node.js backend with high-integrity long polling config.");
+  } else {
+    console.log("Firebase config not found. Running with local storage fallback.");
+  }
+} catch (error) {
+  console.error("Firebase initialization failed on Node.js backend:", error);
+}
+
+// Background utility to async save local state snapshot to Cloud Firestore
+async function saveDatabaseToFirestore(state: DbState) {
+  if (!firestoreDb) return;
+  try {
+    const docRef = doc(firestoreDb, "state_store", "master");
+    await setDoc(docRef, {
+      dbState: state,
+      updatedAt: new Date().toISOString()
+    });
+    console.log("Database state successfully synchronized and saved to Cloud Firestore!");
+  } catch (err) {
+    console.error("Cloud Firestore synchronization failed:", err);
+  }
+}
+
+// Initial restore helper called when server boots
+async function loadDatabaseFromFirestore() {
+  if (!firestoreDb) {
+    console.log("Firestore DB not available, running with existing or seeded local state.");
+    return;
+  }
+  try {
+    console.log("Checking Cloud Firestore for persisted database state...");
+    const docRef = doc(firestoreDb, "state_store", "master");
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      if (data && data.dbState) {
+        fs.writeFileSync(DB_FILE, JSON.stringify(data.dbState, null, 2), "utf8");
+        console.log("SUCCESS: Database state fully restored from Cloud Firestore!");
+      } else {
+        console.log("Firestore master document exists but has no dbState property.");
+      }
+    } else {
+      console.log("No persisted database state found in Firestore. Creating new cloud snapshot on first change.");
+    }
+  } catch (error) {
+    console.error("Failed to restore database state from Firestore:", error);
+  }
+}
 
 // Helper to write to JSON database
 const readDb = (): DbState => {
@@ -284,6 +347,9 @@ const broadcastUpdate = (lastNotification?: any) => {
 const writeDb = (state: DbState, lastNotification?: any) => {
   fs.writeFileSync(DB_FILE, JSON.stringify(state, null, 2), "utf8");
   broadcastUpdate(lastNotification);
+  saveDatabaseToFirestore(state).catch((err) => {
+    console.error("Firestore background synchronization failure:", err);
+  });
 };
 
 const addSystemNotification = (
@@ -315,6 +381,9 @@ const addSystemNotification = (
 };
 
 async function startServer() {
+  // Restore persisted cloud database state prior to API startup
+  await loadDatabaseFromFirestore();
+
   const app = express();
   app.use(express.json());
 
