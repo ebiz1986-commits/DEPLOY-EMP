@@ -672,6 +672,29 @@ async function startServer() {
       updates.final_status = "Pending";
     }
 
+    // Strict sequential pipeline constraints (Doc Upload -> Visa Status -> Bureau Clearance -> Final Placement Status)
+    const finalDocUpload = updates.doc_upload_wa !== undefined ? updates.doc_upload_wa : currentWorker.doc_upload_wa;
+    const finalStatus = updates.status !== undefined ? updates.status : currentWorker.status;
+    const finalBureau = updates.bureau !== undefined ? updates.bureau : currentWorker.bureau;
+
+    if (updates.status !== undefined && updates.status !== currentWorker.status) {
+      if (finalDocUpload !== "Yes") {
+        return res.status(400).json({ success: false, message: "Visa Status can only be changed once 'DOC UPLOAD (WA CHECKER)' is verified ('Yes')." });
+      }
+    }
+
+    if (updates.bureau !== undefined && updates.bureau !== currentWorker.bureau) {
+      if (finalStatus !== "Visa Approved (xpact)" && updates.bureau !== "Pending") {
+        return res.status(400).json({ success: false, message: "Bureau Clearance can only be changed once 'VISA STATUS' is 'Visa Approved (xpact)'." });
+      }
+    }
+
+    if (updates.final_status !== undefined && updates.final_status !== currentWorker.final_status) {
+      if (finalBureau !== "Complete" && updates.final_status !== "Pending") {
+        return res.status(400).json({ success: false, message: "Final Placement Status can only be changed once 'BUREAU CLEARANCE' is 'Complete'." });
+      }
+    }
+
     const currentDateStr = new Date().toISOString().split("T")[0];
 
     // Trigger check for doc_upload_wa change -> autostamp

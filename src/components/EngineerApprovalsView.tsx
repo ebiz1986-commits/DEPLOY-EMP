@@ -54,6 +54,12 @@ export default function EngineerApprovalsView({
   // Maintain local state of rejection reasons per worker rows
   const [rejectReasons, setRejectReasons] = useState<{ [workerId: string]: string }>({});
 
+  // Bulk operation states for technical approvals
+  const [selectedWorkerIds, setSelectedWorkerIds] = useState<string[]>([]);
+  const [bulkBatch, setBulkBatch] = useState<string>("");
+  const [bulkRejectReason, setBulkRejectReason] = useState<string>("");
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+
   // Scope worker actions strictly within the currently selected active project focus
   const scopedWorkers = useMemo(() => {
     return workers.filter((w) => w.project_id === selectedProjectId);
@@ -126,6 +132,156 @@ export default function EngineerApprovalsView({
       return true;
     });
   }, [scopedWorkers, selectedCompany, searchQuery]);
+
+  // Synchronously compute selected IDs that are visible in current workspace
+  const visibleSelectedIds = useMemo(() => {
+    const pendingIds = new Set(pendingWorkers.map((w) => w.id));
+    return selectedWorkerIds.filter((id) => pendingIds.has(id));
+  }, [selectedWorkerIds, pendingWorkers]);
+
+  // Set default bulkBatch once sendingBatches is populated
+  React.useEffect(() => {
+    if (sendingBatches.length > 0 && !bulkBatch) {
+      setBulkBatch(sendingBatches[0]);
+    }
+  }, [sendingBatches, bulkBatch]);
+
+  const handleBulkApprove = async () => {
+    if (visibleSelectedIds.length === 0 || !bulkBatch) return;
+    setIsBulkProcessing(true);
+    setMessage(null);
+
+    let approvedCount = 0;
+    let failedCount = 0;
+    let quotaSkippedCount = 0;
+
+    // To prevent over-allocation during bulk queue, track local decrements
+    const localCategoryRemaining = { ...categoryVacanyMap };
+    const localCompanyCategoryRemaining = { ...companyCategoryVacancyMap };
+
+    try {
+      for (const workerId of visibleSelectedIds) {
+        const w = pendingWorkers.find((x) => x.id === workerId);
+        if (!w) continue;
+
+        const categoryName = w.category;
+        const companyName = w.supply_company || "KSJ";
+        const comboKey = `${categoryName}_${companyName}`;
+
+        const companyRemaining = localCompanyCategoryRemaining[comboKey] ?? 0;
+        const globalRemaining = localCategoryRemaining[categoryName] ?? 0;
+
+        if (companyRemaining <= 0 || globalRemaining <= 0) {
+          quotaSkippedCount++;
+          continue;
+        }
+
+        // Apply deduction locally first
+        localCompanyCategoryRemaining[comboKey] = companyRemaining - 1;
+        localCategoryRemaining[categoryName] = globalRemaining - 1;
+
+        const res = await onApproveWorker(workerId, bulkBatch);
+        if (res.success) {
+          approvedCount++;
+        } else {
+          // Revert deduction
+          localCompanyCategoryRemaining[comboKey] = companyRemaining;
+          localCategoryRemaining[categoryName] = globalRemaining;
+          failedCount++;
+        }
+      }
+
+      let msg = `Bulk Authorization executed. Approved: ${approvedCount} worker(s).`;
+      if (failedCount > 0) msg += ` Failed: ${failedCount} worker(s).`;
+      if (quotaSkippedCount > 0) msg += ` Skipped due to quota limits: ${quotaSkippedCount} worker(s).`;
+
+      setMessage({
+        text: msg,
+        type: approvedCount > 0 ? "success" : "error"
+      });
+
+      setSelectedWorkerIds([]);
+      onRefresh();
+    } catch (err) {
+      setMessage({ text: "Error executing bulk approval.", type: "error" });
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
+  const handleBulkHold = async () => {
+    if (visibleSelectedIds.length === 0) return;
+    setIsBulkProcessing(true);
+    setMessage(null);
+
+    let holdCount = 0;
+    let failedCount = 0;
+
+    try {
+      for (const workerId of visibleSelectedIds) {
+        const res = await onHoldWorker(workerId);
+        if (res.success) {
+          holdCount++;
+        } else {
+          failedCount++;
+        }
+      }
+
+      let msg = `Bulk Hold completed. Placed on hold: ${holdCount} worker(s).`;
+      if (failedCount > 0) msg += ` Failed: ${failedCount} worker(s).`;
+
+      setMessage({
+        text: msg,
+        type: holdCount > 0 ? "success" : "error"
+      });
+
+      setSelectedWorkerIds([]);
+      onRefresh();
+    } catch (err) {
+      setMessage({ text: "Error placing workers on bulk hold.", type: "error" });
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
+  const handleBulkReject = async () => {
+    if (visibleSelectedIds.length === 0 || !bulkRejectReason.trim()) {
+      setMessage({ text: "Please enter a valid reject reason for bulk rejection.", type: "error" });
+      return;
+    }
+    setIsBulkProcessing(true);
+    setMessage(null);
+
+    let rejectCount = 0;
+    let failedCount = 0;
+
+    try {
+      for (const workerId of visibleSelectedIds) {
+        const res = await onRejectWorker(workerId, bulkRejectReason.trim());
+        if (res.success) {
+          rejectCount++;
+        } else {
+          failedCount++;
+        }
+      }
+
+      let msg = `Bulk Reject completed. Rejected: ${rejectCount} worker(s).`;
+      if (failedCount > 0) msg += ` Failed: ${failedCount} worker(s).`;
+
+      setMessage({
+        text: msg,
+        type: rejectCount > 0 ? "success" : "error"
+      });
+
+      setSelectedWorkerIds([]);
+      setBulkRejectReason("");
+      onRefresh();
+    } catch (err) {
+      setMessage({ text: "Error executing bulk rejection.", type: "error" });
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
 
   const handleApprove = async (workerId: string, categoryName: string) => {
     setMessage(null);
@@ -301,12 +457,123 @@ export default function EngineerApprovalsView({
           </div>
         </div>
 
+        {/* Bulk Action Controls Bar for Engineer approvals */}
+        {visibleSelectedIds.length > 0 && (
+          <div className="bg-amber-500/[0.07] border-b border-line/60 px-4 py-3 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-xs font-sans animate-fade-in select-none">
+            <div className="flex items-center gap-2.5">
+              <span className="flex items-center justify-center min-w-[22px] px-1.5 h-5 bg-amber-600/90 text-[#FDFBF6] rounded-md text-[10px] font-bold shadow-xs">
+                {visibleSelectedIds.length}
+              </span>
+              <div>
+                <span className="font-semibold text-amber-950 block">Bulk Intake Actions</span>
+                <span className="text-[10px] text-amber-700 font-medium font-mono">Approve, hold, or reject selected intake cohorts</span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+              {/* Batch option for Bulk Approval */}
+              <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                <span className="text-muted font-medium text-[11px] shrink-0 uppercase tracking-wider font-mono">Sending Batch:</span>
+                <select
+                  value={bulkBatch}
+                  onChange={(e) => setBulkBatch(e.target.value)}
+                  disabled={isBulkProcessing}
+                  className="bg-white border border-stone-300 rounded px-2.5 py-1 text-xs text-ink font-semibold outline-none cursor-pointer shadow-2xs"
+                >
+                  {sendingBatches.map((batch) => (
+                    <option key={batch} value={batch}>
+                      {batch}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Reject Reason input for Bulk Rejection */}
+              <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                <span className="text-muted font-medium text-[11px] shrink-0 uppercase tracking-wider font-mono">Reject Reason:</span>
+                <input
+                  type="text"
+                  placeholder="Reason (req. for rejection)"
+                  value={bulkRejectReason}
+                  onChange={(e) => setBulkRejectReason(e.target.value)}
+                  disabled={isBulkProcessing}
+                  className="bg-white border border-stone-300 rounded px-2.5 py-1 text-xs text-ink outline-none w-44 shadow-2xs"
+                />
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-1.5 w-full sm:w-auto mt-2 sm:mt-0">
+                <button
+                  type="button"
+                  onClick={handleBulkApprove}
+                  disabled={isBulkProcessing || !bulkBatch}
+                  className="flex items-center gap-1 px-3 py-1 text-[11px] font-mono text-[#FDFBF6] bg-accent hover:bg-accent/90 disabled:bg-stone-300 disabled:text-stone-500 rounded font-semibold cursor-pointer transition-colors shadow-2xs"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#FDFBF6]" />
+                  <span>Bulk Authorize</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleBulkHold}
+                  disabled={isBulkProcessing}
+                  className="flex items-center gap-1 px-3 py-1 text-[11px] font-mono text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300/40 rounded font-semibold cursor-pointer transition-colors shadow-2xs"
+                >
+                  <Pause className="w-3 h-3" />
+                  <span>Bulk Hold</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleBulkReject}
+                  disabled={isBulkProcessing || !bulkRejectReason.trim()}
+                  className="flex items-center gap-1 px-3 py-1 text-[11px] font-mono text-bad bg-red-50 hover:bg-red-100 border border-red-300/40 disabled:bg-stone-50 disabled:border-stone-200 disabled:text-stone-400 rounded font-semibold cursor-pointer transition-colors shadow-2xs"
+                >
+                  <XCircle className="w-3 h-3 animate-pulse" />
+                  <span>Bulk Reject</span>
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedWorkerIds([]);
+                    setBulkRejectReason("");
+                  }}
+                  disabled={isBulkProcessing}
+                  className="px-2.5 py-1 text-[11px] text-stone-500 hover:text-ink bg-white border border-stone-200 rounded font-semibold shadow-2xs cursor-pointer transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Pending registers list */}
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs font-sans">
             <thead>
               <tr className="bg-paper/35 border-b border-line/60 font-mono text-muted text-[10px] uppercase select-none">
-                <th className="p-3 pl-5">Intake Name</th>
+                <th className="p-3 pl-5 w-12 text-center text-ink bg-paper/10 font-bold">
+                  <input
+                    type="checkbox"
+                    checked={
+                      pendingWorkers.length > 0 &&
+                      pendingWorkers.every((w) => selectedWorkerIds.includes(w.id))
+                    }
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        const allPendingIds = pendingWorkers.map((w) => w.id);
+                        setSelectedWorkerIds((prev) => Array.from(new Set([...prev, ...allPendingIds])));
+                      } else {
+                        const pendingIdsSet = new Set(pendingWorkers.map((w) => w.id));
+                        setSelectedWorkerIds((prev) => prev.filter((id) => !pendingIdsSet.has(id)));
+                      }
+                    }}
+                    className="rounded border-stone-300 text-accent focus:ring-accent w-3.5 h-3.5 cursor-pointer"
+                  />
+                </th>
+                <th className="p-3 pl-2">Intake Name</th>
                 <th className="p-3">Passport No.</th>
                 <th className="p-3">Actual Job Category</th>
                 <th className="p-3">Associated Supply Agency</th>
@@ -318,7 +585,7 @@ export default function EngineerApprovalsView({
             <tbody className="divide-y divide-line/40">
               {pendingWorkers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center text-muted">
+                  <td colSpan={8} className="p-12 text-center text-muted">
                     <div className="max-w-xs mx-auto space-y-1.5">
                       <p className="font-semibold text-ink">Intake gate contains zero pending workers</p>
                       <p className="text-[11px]">All registered cohorts are fully validated or filters are limiting records.</p>
@@ -334,8 +601,24 @@ export default function EngineerApprovalsView({
                   return (
                     <tr key={w.id} className={`transition-colors hover:bg-paper/10 ${w.state === "held" ? "bg-amber-500/[0.04]" : ""}`}>
                       
+                      {/* Checkbox Column */}
+                      <td className="p-3 pl-5 w-12 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedWorkerIds.includes(w.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedWorkerIds((prev) => [...prev, w.id]);
+                            } else {
+                              setSelectedWorkerIds((prev) => prev.filter((id) => id !== w.id));
+                            }
+                          }}
+                          className="rounded border-stone-300 text-accent focus:ring-accent w-3.5 h-3.5 cursor-pointer"
+                        />
+                      </td>
+
                       {/* Name */}
-                      <td className="p-3 pl-5 font-semibold text-ink font-display">
+                      <td className="p-3 pl-2 font-semibold text-ink font-display">
                         <div className="flex items-center gap-2">
                           <span>{w.name}</span>
                           {w.state === "held" && (
