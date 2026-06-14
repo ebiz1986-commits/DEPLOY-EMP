@@ -129,6 +129,19 @@ export default function OperationsView({
     });
   }, [scopedWorkers, selectedCompany, selectedCategory, searchQuery]);
 
+  // Filter out individuals who have "Arrived" status from both queues
+  const activePipelineWorkers = useMemo(() => {
+    return activeWorkers.filter(w => w.final_status !== "Arrived");
+  }, [activeWorkers]);
+
+  const bureauPendingList = useMemo(() => {
+    return activePipelineWorkers.filter(w => w.bureau !== "Complete");
+  }, [activePipelineWorkers]);
+
+  const readyForDepartureList = useMemo(() => {
+    return activePipelineWorkers.filter(w => w.bureau === "Complete");
+  }, [activePipelineWorkers]);
+
   const showToast = (text: string, type: "success" | "error" = "success") => {
     setToastMessage({ text, type });
     setTimeout(() => {
@@ -153,6 +166,358 @@ export default function OperationsView({
     } else {
       showToast(`Field change failed. Please verify network.`, "error");
     }
+  };
+
+  const renderWorkersTable = (list: Worker[], emptyTitle: string, emptySub: string) => {
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse text-xs font-sans">
+          <thead>
+            <tr className="bg-paper/35 border-b border-line/60 font-mono text-muted text-[10px] uppercase">
+              <th className="p-3 pl-5">WORKER DETAILS</th>
+              <th className="p-3">PASSPORT NO</th>
+              <th className="p-3">BUREAU CATEGORY</th>
+              <th className="p-3">ACTUAL JOB CATEGORY</th>
+              <th className="p-3">DOC UPLOAD (WA CHECKER)</th>
+              <th className="p-3">LAST UPDATED STAMP</th>
+              <th className="p-3">VISA STATUS (XPACT)</th>
+              <th className="p-3">BUREAU CLEARANCE</th>
+              <th className="p-3 mr-5 pr-5">FINAL PLACEMENT STATUS</th>
+            </tr>
+          </thead>
+          
+          <tbody className="divide-y divide-line/40">
+            {list.length === 0 ? (
+              <tr>
+                <td colSpan={9} className="p-12 text-center text-muted">
+                  <div className="max-w-xs mx-auto space-y-1.5 font-sans">
+                    <p className="font-semibold text-ink font-display">{emptyTitle}</p>
+                    <p className="text-[11px] text-muted">{emptySub}</p>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              list.map((w) => {
+                const isDocUploadLocked = currentUser?.role !== "admin" && w.doc_upload_wa === "Yes";
+                const isStatusLocked = w.doc_upload_wa !== "Yes" || (currentUser?.role !== "admin" && w.status !== "Pending");
+                const isBureauLocked = w.doc_upload_wa !== "Yes" || 
+                  (currentUser?.role !== "admin" && currentUser?.role !== "recruiter") || 
+                  (currentUser?.role !== "admin" && w.bureau !== "Pending");
+                const isFinalStatusLocked = w.doc_upload_wa !== "Yes" || (currentUser?.role !== "admin" && w.final_status !== "Pending");
+
+                const docValue = w.doc_upload_wa === "No" ? "Pending" : w.doc_upload_wa;
+
+                return (
+                  <tr key={w.id} className="hover:bg-paper/10 transition-colors">
+                    
+                    {/* Worker credentials info */}
+                    <td className="p-3 pl-5 max-w-[170px]">
+                      <div className="font-semibold text-ink font-display truncate text-xs block" title={w.name}>{w.name}</div>
+                      <div className="text-[10px] text-muted truncate text-[9px] block" title={w.supply_company}>{w.supply_company}</div>
+
+                      {/* Associated Documents */}
+                      <div className="mt-1.5">
+                        {w.doc_link ? (
+                          <a
+                            href={w.doc_link.startsWith("http") ? w.doc_link : `https://${w.doc_link}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 font-sans text-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 px-2.5 py-0.5 rounded font-semibold transition-all w-fit cursor-pointer shadow-xs"
+                            title="See Attached Document Link"
+                          >
+                            <ExternalLink className="w-2.5 h-2.5 shrink-0 text-emerald-500" />
+                            <span>See Attached Document Link</span>
+                          </a>
+                        ) : (
+                          <span className="text-[10px] text-stone-400 italic">No document link</span>
+                        )}
+                        
+                        {w.bulk_doc_link && (
+                          <div className="mt-1">
+                            <a
+                              href={w.bulk_doc_link.startsWith("http") ? w.bulk_doc_link : `https://${w.bulk_doc_link}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 font-mono text-[8.5px] bg-indigo-50 border border-indigo-200/50 hover:bg-indigo-100/50 text-indigo-700 px-1.5 py-0.5 rounded font-medium transition-all w-fit cursor-pointer"
+                              title="Download Bulk Folder"
+                            >
+                              <FolderOpen className="w-2 h-2 shrink-0 text-indigo-500" />
+                              <span>Bulk Folder</span>
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Passport */}
+                    <td className="p-3 font-mono text-ink font-semibold">
+                      {w.passport}
+                    </td>
+
+                    {/* Bureau Category */}
+                    <td className="p-3 min-w-[195px]">
+                      <div className="flex flex-col gap-1.5 justify-center max-w-[210px]">
+                        <select
+                          value={w.bureau_category || ""}
+                          onChange={async (e) => {
+                            const newVal = e.target.value;
+                            await onUpdateWorker(w.id, { bureau_category: newVal });
+                          }}
+                          disabled={currentUser?.role === "viewer"}
+                          className="bg-paper/30 text-[11px] border border-line/45 focus:border-accent rounded px-2 py-1 outline-none font-mono text-ink focus:text-ink w-full cursor-pointer disabled:cursor-not-allowed text-xs font-semibold"
+                          title="Select Bureau Category"
+                        >
+                          <option value="">-- Select Bureau Category --</option>
+                          {bureauAllocations.map((ba) => (
+                            <option key={ba.id} value={ba.category}>
+                              {ba.category}
+                            </option>
+                          ))}
+                        </select>
+
+                        {/* Selected Category remaining stats info label */}
+                        {w.bureau_category && (() => {
+                          const selectedCat = w.bureau_category;
+                          const ba = bureauAllocations.find(
+                            b => b.category.trim().toLowerCase() === selectedCat.trim().toLowerCase()
+                          );
+                          const count = bureauAssignmentsCount[selectedCat.trim().toLowerCase()] || 0;
+                          const bureauRemaining = ba ? ba.qty - count : 0;
+
+                          const xa = xpactAllocations.find(
+                            x => x.category.trim().toLowerCase() === selectedCat.trim().toLowerCase()
+                          );
+                          const xpactRemaining = xa ? xa.qty - count : null;
+
+                          return (
+                            <div className="flex flex-wrap gap-1.5 mt-1 text-[10px] font-mono leading-none select-none">
+                              <span className={`px-2 py-1 rounded border-2 font-bold ${
+                                bureauRemaining < 1 
+                                  ? "bg-red-100 text-red-950 border-red-700 font-extrabold" 
+                                  : "bg-emerald-100/40 text-emerald-950 border-emerald-600"
+                              }`}>
+                                Remaining Bureau ; {bureauRemaining}
+                              </span>
+                              <span className={`px-2 py-1 rounded border-2 font-bold ${
+                                xpactRemaining !== null && xpactRemaining < 1
+                                  ? "bg-red-100 text-red-950 border-red-700 font-extrabold"
+                                  : "bg-indigo-100/40 text-indigo-950 border-indigo-600"
+                              }`}>
+                                xpact :{xpactRemaining ?? 0}
+                              </span>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </td>
+
+                    {/* Actual Job Category */}
+                    <td className="p-3">
+                      <span className="px-2 py-0.5 bg-paper border border-line/40 text-[10px] text-ink rounded font-semibold whitespace-nowrap">
+                        {w.category}
+                      </span>
+                    </td>
+
+                    {/* WhatsApp Doc Checked checkbox list toggle */}
+                    <td className="p-3">
+                      <div className="flex flex-col gap-1.5 min-w-[145px]">
+                        <div className="flex items-center gap-1.5 w-full">
+                          <select
+                            value={docValue}
+                            onChange={(e) => handleFieldChange(w.id, "doc_upload_wa", e.target.value)}
+                            disabled={isDocUploadLocked}
+                            className={`text-[11px] px-2.5 py-1 font-mono rounded border outline-none w-full ${
+                              isDocUploadLocked 
+                                ? "bg-stone-100 text-stone-400 border-stone-200 cursor-not-allowed" 
+                                : "cursor-pointer"
+                            } ${
+                              docValue === "Yes" 
+                                ? "bg-success-green/10 text-success-green border-success-green/40 font-semibold" 
+                                : docValue === "Rejected"
+                                ? "bg-red-50 text-bad border-bad/40 font-semibold"
+                                : "bg-amber-50 text-amber-700 border-amber-300 font-semibold"
+                            }`}
+                          >
+                            <option value="Pending">Pending</option>
+                            <option value="Yes">Yes</option>
+                            <option value="Rejected">Rejected</option>
+                          </select>
+                          {isDocUploadLocked && (
+                            <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" title="Locked: Only system admin can modify after change applied" />
+                          )}
+                        </div>
+                        <span className="block text-[9px] text-[#8a8175] font-mono pl-1" title="WA Doc Change Date">
+                          Date: {w.doc_upload_wa_date || w.last_updated || (w.created_at ? w.created_at.split("T")[0] : "—")}
+                        </span>
+                        
+                        {/* Display days waiting or took to upload */}
+                        {(() => {
+                          const isCompleted = docValue === "Yes";
+                          const completedDate = w.doc_upload_wa_date || w.last_updated || (w.created_at ? w.created_at.split("T")[0] : undefined);
+                          const days = getDaysWaiting(w.created_at, completedDate, isCompleted);
+                          if (days === null) return null;
+                          if (isCompleted) {
+                            return (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-mono text-success-green bg-success-green/10 border border-success-green/20 px-1.5 py-0.5 rounded w-fit pl-1" title="Completed upload duration since record creation">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-success-green shrink-0" />
+                                <span>Uploaded in {days} d</span>
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded w-fit pl-1 ${
+                              docValue === "Rejected"
+                                ? "text-bad bg-red-50 border border-bad/20"
+                                : "text-amber-700 bg-amber-50 border border-amber-100"
+                            }`} title="Number of days queueing since Candidate record created by recruiting agency">
+                              <Clock className="w-3 h-3 animate-pulse shrink-0" />
+                              <span>Waiting: {days} {days === 1 ? "day" : "days"}</span>
+                            </span>
+                          );
+                        })()}
+
+                        {(docValue === "Rejected" || w.doc_upload_wa === "No") && (
+                          <div className="w-full flex flex-col gap-0.5">
+                            <span className="text-[8px] uppercase tracking-wider font-semibold text-bad font-mono">Reject Reason:</span>
+                            <input
+                              type="text"
+                              placeholder="Enter rejection reason..."
+                              defaultValue={w.wa_doc_reject_reason || ""}
+                              onBlur={(e) => handleFieldChange(w.id, "wa_doc_reject_reason", e.target.value.trim())}
+                              onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    handleFieldChange(w.id, "wa_doc_reject_reason", (e.target as HTMLInputElement).value.trim());
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                              }}
+                              disabled={isDocUploadLocked}
+                              className="text-[10px] w-full px-2 py-1 bg-stone-50 border border-stone-200 focus:border-bad/65 rounded shadow-sm outline-none font-sans"
+                              title="Press Enter or update focus to save rejection details"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Read-only Auto Stamp */}
+                    <td className="p-3 font-mono text-[10px] text-muted font-semibold">
+                      {w.last_updated ? (
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-success-green" />
+                          <span>{w.last_updated}</span>
+                        </span>
+                      ) : (
+                        <span className="italic text-stone-400">Not check-in</span>
+                      )}
+                    </td>
+
+                    {/* Visa Status List Picker */}
+                    <td className="p-2 min-w-[170px]">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1">
+                          <select
+                            value={w.status}
+                            onChange={(e) => handleFieldChange(w.id, "status", e.target.value)}
+                            disabled={isStatusLocked}
+                            className={`text-xs px-2 py-1 border rounded outline-none w-full font-medium ${
+                              isStatusLocked 
+                                ? "bg-stone-50 text-stone-400 border-stone-200 cursor-not-allowed" 
+                                : "bg-paper/20 border-line focus:border-accent cursor-pointer text-ink font-semibold"
+                            }`}
+                          >
+                            {statusOptions.map((opt) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                          {isStatusLocked && (
+                            <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" title={w.doc_upload_wa !== "Yes" ? "Locked: 'DOC upload' must be Yes" : "Locked: Only system admin can modify after change applied"} />
+                          )}
+                        </div>
+                        <span className="block text-[9px] text-[#8a8175] font-mono pl-1" title="Visa Status Change Date">
+                          Date: {w.status_date || (w.created_at ? w.created_at.split("T")[0] : "—")}
+                        </span>
+                        {w.doc_upload_wa !== "Yes" && (
+                          <div className="text-[9px] text-bad font-mono pl-1">Requires DOC Upload</div>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Bureau Option Picker */}
+                    <td className="p-2 min-w-[140px]">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1">
+                          <select
+                            value={w.bureau}
+                            onChange={(e) => handleFieldChange(w.id, "bureau", e.target.value)}
+                            disabled={isBureauLocked}
+                            className={`text-xs px-2 py-1 border rounded outline-none w-full font-medium ${
+                              isBureauLocked 
+                                ? "bg-stone-50 text-stone-400 border-stone-200 cursor-not-allowed" 
+                                : "bg-paper/20 border-line focus:border-accent cursor-pointer text-ink font-semibold"
+                            }`}
+                          >
+                            {bureauOptions.map((opt) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                          {isBureauLocked && (
+                            <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" title={
+                              w.doc_upload_wa !== "Yes" 
+                                ? "Locked: 'DOC upload' must be Yes" 
+                                : (currentUser?.role !== "admin" && currentUser?.role !== "recruiter")
+                                  ? "Locked: Bureau Clearance can only be updated by Recruitment Company"
+                                  : "Locked: Only system admin can modify after change applied"
+                            } />
+                          )}
+                        </div>
+                        <span className="block text-[9px] text-[#8a8175] font-mono pl-1" title="Bureau Change Date">
+                          Date: {w.bureau_date || (w.bureau_completed_at ? w.bureau_completed_at.split("T")[0] : (w.created_at ? w.created_at.split("T")[0] : "—"))}
+                        </span>
+                        {w.doc_upload_wa !== "Yes" && (
+                          <div className="text-[9px] text-bad font-mono pl-1">Requires DOC Upload</div>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Final Arrival Status Selector */}
+                    <td className="p-2 pr-5 min-w-[140px]">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1">
+                          <select
+                            value={w.final_status}
+                            onChange={(e) => handleFieldChange(w.id, "final_status", e.target.value)}
+                            disabled={isFinalStatusLocked}
+                            className={`text-xs px-2 py-1 border rounded outline-none w-full font-medium ${
+                              isFinalStatusLocked 
+                                ? "bg-stone-50 text-stone-400 border-stone-200 cursor-not-allowed" 
+                                : "bg-paper/20 border-line focus:border-accent cursor-pointer text-ink font-semibold"
+                            }`}
+                          >
+                            {finalStatusOptions.map((opt) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                          {isFinalStatusLocked && (
+                            <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" title={w.doc_upload_wa !== "Yes" ? "Locked: 'DOC upload' must be Yes" : "Locked: Only system admin can modify after change applied"} />
+                          )}
+                        </div>
+                        <span className="block text-[9px] text-[#8a8175] font-mono pl-1" title="Final Placement Change Date">
+                          Date: {w.final_status_date || (w.created_at ? w.created_at.split("T")[0] : "—")}
+                        </span>
+                        {w.doc_upload_wa !== "Yes" && (
+                          <div className="text-[9px] text-bad font-mono pl-1">Requires DOC Upload</div>
+                        )}
+                      </div>
+                    </td>
+
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
   };
 
   return (
@@ -206,373 +571,28 @@ export default function OperationsView({
         </div>
       )}
 
-      {/* Operations Active Grid Table */}
-      <div className="bg-card border border-line rounded-xl shadow-sm overflow-hidden select-none">
-        
-        {/* Table Titlebar */}
-        <div className="p-4 border-b border-line bg-paper/20 flex flex-col sm:flex-row items-center justify-between gap-4 font-sans text-xs">
+      {/* Single full-width grand table deck */}
+      <div className="bg-card border border-line rounded-xl shadow-sm overflow-hidden flex flex-col" id="operations-split-queues">
+        <div className="p-4 border-b border-line bg-paper/25 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 font-sans text-xs">
           <div>
-            <h3 className="text-sm font-semibold text-ink font-display">Field K-O Stage Update Deck (Active Pipeline)</h3>
-            <p className="text-[11px] text-muted">Showing {activeWorkers.length} active workers in current selection framework.</p>
+            <h3 className="text-sm font-bold text-ink font-display flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#10B981] animate-pulse inline-block" />
+              Field K-O Stage Update Deck (Active Pipeline)
+            </h3>
+            <p className="text-[11px] mt-0.5 text-muted font-medium">
+              Showing {activeWorkers.length} active workers in current selection framework.
+            </p>
           </div>
-          
-          <div className="text-[10px] bg-paper/40 border border-line rounded px-2.5 py-1 text-muted font-mono leading-relaxed max-w-sm">
-            <strong>TRIGGER LOGIC:</strong> Toggling <strong>WhatsApp Checked</strong> stamps today&apos;s date into <strong>Last Updated</strong>. Setting Visa Approved places worker in the Sanken Overseas Recruiter&apos;s Bureau list.
+          <div className="text-[10.5px] bg-paper/60 border border-line/90 rounded-md p-2.5 text-muted font-mono leading-relaxed max-w-xl shrink-0 shadow-2xs">
+            <strong>TRIGGER LOGIC:</strong> Toggling WhatsApp Checked stamps today's date into Last Updated. Setting Visa Approved places worker in the Sanken Overseas Recruiter's Bureau list.
           </div>
         </div>
-
-        {/* Scrollable table content */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs font-sans">
-            <thead>
-              <tr className="bg-paper/35 border-b border-line/60 font-mono text-muted text-[10px] uppercase">
-                <th className="p-3 pl-5">Worker details</th>
-                <th className="p-3">Passport No</th>
-                <th className="p-3">Bureau Category</th>
-                <th className="p-3">Actual Job Category</th>
-                <th className="p-3">Doc upload (WA CHECKER)</th>
-                <th className="p-3">Last updated stamp</th>
-                <th className="p-3">Visa Status (xpact)</th>
-                <th className="p-3">Bureau clearance</th>
-                <th className="p-3 mr-5 pr-5">Final placement status</th>
-              </tr>
-            </thead>
-            
-            <tbody className="divide-y divide-line/40">
-              {activeWorkers.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="p-12 text-center text-muted">
-                    <div className="max-w-xs mx-auto space-y-1.5">
-                      <p className="font-semibold text-ink font-display">No active records in selection</p>
-                      <p className="text-[11px]">Approved active workers appear here. Or modify filters.</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                activeWorkers.map((w) => {
-                  const isDocUploadLocked = currentUser?.role !== "admin" && w.doc_upload_wa === "Yes";
-                  const isStatusLocked = w.doc_upload_wa !== "Yes" || (currentUser?.role !== "admin" && w.status !== "Pending");
-                  const isBureauLocked = w.doc_upload_wa !== "Yes" || 
-                    (currentUser?.role !== "admin" && currentUser?.role !== "recruiter") || 
-                    (currentUser?.role !== "admin" && w.bureau !== "Pending");
-                  const isFinalStatusLocked = w.doc_upload_wa !== "Yes" || (currentUser?.role !== "admin" && w.final_status !== "Pending");
-
-                  return (
-                    <tr key={w.id} className="hover:bg-paper/10 transition-colors">
-                      
-                      {/* Worker credentials info */}
-                      <td className="p-3 pl-5 max-w-[170px]">
-                        <div className="font-semibold text-ink font-display truncate" title={w.name}>{w.name}</div>
-                        <div className="text-[10px] text-muted truncate" title={w.supply_company}>{w.supply_company}</div>
-
-                        {/* Associated Documents */}
-                        <div className="mt-1.5">
-                          {w.doc_link ? (
-                            <a
-                              href={w.doc_link.startsWith("http") ? w.doc_link : `https://${w.doc_link}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 font-sans text-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 px-2.5 py-0.5 rounded font-semibold transition-all w-fit cursor-pointer shadow-xs"
-                              title="See Attached Document Link"
-                            >
-                              <ExternalLink className="w-2.5 h-2.5 shrink-0 text-emerald-500" />
-                              <span>See Attached Document Link</span>
-                            </a>
-                          ) : (
-                            <span className="text-[10px] text-stone-400 italic">No document link</span>
-                          )}
-                          
-                          {w.bulk_doc_link && (
-                            <div className="mt-1">
-                              <a
-                                href={w.bulk_doc_link.startsWith("http") ? w.bulk_doc_link : `https://${w.bulk_doc_link}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 font-mono text-[8px] bg-indigo-50 border border-indigo-200/50 hover:bg-indigo-100/50 text-indigo-705 px-1.5 py-0.5 rounded font-medium transition-all w-fit cursor-pointer"
-                                title="Download Bulk Folder"
-                              >
-                                <FolderOpen className="w-2 h-2 shrink-0 text-indigo-500" />
-                                <span>Bulk Folder</span>
-                              </a>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Passport */}
-                      <td className="p-3 font-mono text-ink font-medium">
-                        {w.passport}
-                      </td>
-
-                      {/* Bureau Category */}
-                      <td className="p-3 min-w-[195px]">
-                        <div className="flex flex-col gap-1.5 justify-center max-w-[210px]">
-                          <select
-                            value={w.bureau_category || ""}
-                            onChange={async (e) => {
-                              const newVal = e.target.value;
-                              await onUpdateWorker(w.id, { bureau_category: newVal });
-                            }}
-                            disabled={currentUser?.role === "viewer"}
-                            className="bg-paper/30 text-[11px] border border-line/45 focus:border-accent rounded px-2 py-1 outline-none font-mono text-ink focus:text-ink w-full cursor-pointer disabled:cursor-not-allowed"
-                            title="Select Bureau Category"
-                          >
-                            <option value="">-- Select Bureau Category --</option>
-                            {bureauAllocations.map((ba) => (
-                              <option key={ba.id} value={ba.category}>
-                                {ba.category}
-                              </option>
-                            ))}
-                          </select>
-
-                          {/* Selected Category remaining stats info label */}
-                          {w.bureau_category && (() => {
-                            const selectedCat = w.bureau_category;
-                            const ba = bureauAllocations.find(
-                              b => b.category.trim().toLowerCase() === selectedCat.trim().toLowerCase()
-                            );
-                            const count = bureauAssignmentsCount[selectedCat.trim().toLowerCase()] || 0;
-                            const bureauRemaining = ba ? ba.qty - count : 0;
-
-                            const xa = xpactAllocations.find(
-                              x => x.category.trim().toLowerCase() === selectedCat.trim().toLowerCase()
-                            );
-                            const xpactRemaining = xa ? xa.qty - count : null;
-
-                            return (
-                              <div className="flex flex-wrap gap-1.5 mt-1 text-[10px] font-mono leading-none select-none">
-                                <span className={`px-2 py-1 rounded border-2 font-bold ${
-                                  bureauRemaining < 1 
-                                    ? "bg-red-100 text-red-950 border-red-700 font-extrabold" 
-                                    : "bg-emerald-100/40 text-emerald-950 border-emerald-600"
-                                }`}>
-                                  Remaining Bureau ; {bureauRemaining}
-                                </span>
-                                <span className={`px-2 py-1 rounded border-2 font-bold ${
-                                  xpactRemaining !== null && xpactRemaining < 1
-                                    ? "bg-red-100 text-red-950 border-red-700 font-extrabold"
-                                    : "bg-indigo-100/40 text-indigo-950 border-indigo-600"
-                                }`}>
-                                  xpact :{xpactRemaining ?? 0}
-                                </span>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      </td>
-
-                      {/* Actual Job Category */}
-                      <td className="p-3">
-                        <span className="px-2 py-0.5 bg-paper border border-line/40 text-[10px] text-ink rounded font-semibold whitespace-nowrap">
-                          {w.category}
-                        </span>
-                      </td>
-
-                      {/* WhatsApp Doc Checked checkbox list toggle */}
-                      <td className="p-3">
-                        {(() => {
-                          const docValue = w.doc_upload_wa === "No" ? "Pending" : w.doc_upload_wa;
-                          return (
-                            <div className="flex flex-col gap-1.5 min-w-[145px]">
-                              <div className="flex items-center gap-1.5 w-full">
-                                <select
-                                  value={docValue}
-                                  onChange={(e) => handleFieldChange(w.id, "doc_upload_wa", e.target.value)}
-                                  disabled={isDocUploadLocked}
-                                  className={`text-[11px] px-2.5 py-1 font-mono rounded border outline-none w-full ${
-                                    isDocUploadLocked 
-                                      ? "bg-stone-100 text-stone-400 border-stone-200 cursor-not-allowed" 
-                                      : "cursor-pointer"
-                                  } ${
-                                    docValue === "Yes" 
-                                      ? "bg-success-green/10 text-success-green border-success-green/40 font-semibold" 
-                                      : docValue === "Rejected"
-                                      ? "bg-red-50 text-bad border-bad/40 font-semibold"
-                                      : "bg-amber-50 text-amber-700 border-amber-300 font-semibold"
-                                  }`}
-                                >
-                                  <option value="Pending">Pending</option>
-                                  <option value="Yes">Yes</option>
-                                  <option value="Rejected">Rejected</option>
-                                </select>
-                                {isDocUploadLocked && (
-                                  <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" title="Locked: Only system admin can modify after change applied" />
-                                )}
-                              </div>
-                              <span className="block text-[9px] text-[#8a8175] font-mono pl-1" title="WA Doc Change Date">
-                                Date: {w.doc_upload_wa_date || w.last_updated || (w.created_at ? w.created_at.split("T")[0] : "—")}
-                              </span>
-                              
-                              {/* Display days waiting or took to upload */}
-                              {(() => {
-                                const isCompleted = docValue === "Yes";
-                                const completedDate = w.doc_upload_wa_date || w.last_updated || (w.created_at ? w.created_at.split("T")[0] : undefined);
-                                const days = getDaysWaiting(w.created_at, completedDate, isCompleted);
-                                if (days === null) return null;
-                                if (isCompleted) {
-                                  return (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-mono text-success-green bg-success-green/10 border border-success-green/20 px-1.5 py-0.5 rounded w-fit pl-1" title="Completed upload duration since record creation">
-                                      <CheckCircle2 className="w-3 h-3 text-success-green shrink-0" />
-                                      <span>Uploaded in {days} d</span>
-                                    </span>
-                                  );
-                                }
-                                return (
-                                  <span className={`inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded w-fit pl-1 ${
-                                    docValue === "Rejected"
-                                      ? "text-bad bg-red-50 border border-bad/20"
-                                      : "text-amber-700 bg-amber-50 border border-amber-100"
-                                  }`} title="Number of days queueing since Candidate record created by recruiting agency">
-                                    <Clock className="w-3 h-3 animate-pulse shrink-0" />
-                                    <span>Waiting: {days} {days === 1 ? "day" : "days"}</span>
-                                  </span>
-                                );
-                              })()}
-
-                              {(docValue === "Rejected" || docValue === "No") && (
-                                <div className="w-full flex flex-col gap-0.5">
-                                  <span className="text-[8px] uppercase tracking-wider font-semibold text-bad font-mono">Reject Reason:</span>
-                                  <input
-                                    type="text"
-                                    placeholder="Enter rejection reason..."
-                                    defaultValue={w.wa_doc_reject_reason || ""}
-                                    onBlur={(e) => handleFieldChange(w.id, "wa_doc_reject_reason", e.target.value.trim())}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter") {
-                                        handleFieldChange(w.id, "wa_doc_reject_reason", (e.target as HTMLInputElement).value.trim());
-                                        (e.target as HTMLInputElement).blur();
-                                      }
-                                    }}
-                                    disabled={isDocUploadLocked}
-                                    className="text-[10px] w-full px-2 py-1 bg-stone-50 border border-stone-200 focus:border-bad/65 rounded shadow-sm outline-none font-sans"
-                                    title="Press Enter or update focus to save rejection details"
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </td>
-
-                      {/* Read-only Auto Stamp */}
-                      <td className="p-3 font-mono text-[10px] text-muted">
-                        {w.last_updated ? (
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-success-green" />
-                            <span>{w.last_updated}</span>
-                          </span>
-                        ) : (
-                          <span className="italic text-stone-400">Not check-in</span>
-                        )}
-                      </td>
-
-                      {/* Visa Status List Picker */}
-                      <td className="p-2 min-w-[170px]">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1">
-                            <select
-                              value={w.status}
-                              onChange={(e) => handleFieldChange(w.id, "status", e.target.value)}
-                              disabled={isStatusLocked}
-                              className={`text-xs px-2 py-1 border rounded outline-none w-full font-medium ${
-                                isStatusLocked 
-                                  ? "bg-stone-50 text-stone-400 border-stone-200 cursor-not-allowed" 
-                                  : "bg-paper/20 border-line focus:border-accent cursor-pointer text-ink"
-                              }`}
-                            >
-                              {statusOptions.map((opt) => (
-                                <option key={opt} value={opt}>{opt}</option>
-                              ))}
-                            </select>
-                            {isStatusLocked && (
-                              <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" title={w.doc_upload_wa !== "Yes" ? "Locked: 'DOC upload' must be Yes" : "Locked: Only system admin can modify after change applied"} />
-                            )}
-                          </div>
-                          <span className="block text-[9px] text-[#8a8175] font-mono pl-1" title="Visa Status Change Date">
-                            Date: {w.status_date || (w.created_at ? w.created_at.split("T")[0] : "—")}
-                          </span>
-                          {w.doc_upload_wa !== "Yes" && (
-                            <div className="text-[9px] text-bad font-mono pl-1">Requires DOC Upload</div>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Bureau Option Picker */}
-                      <td className="p-2 min-w-[140px]">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1">
-                            <select
-                              value={w.bureau}
-                              onChange={(e) => handleFieldChange(w.id, "bureau", e.target.value)}
-                              disabled={isBureauLocked}
-                              className={`text-xs px-2 py-1 border rounded outline-none w-full font-medium ${
-                                isBureauLocked 
-                                  ? "bg-stone-50 text-stone-400 border-stone-200 cursor-not-allowed" 
-                                  : "bg-paper/20 border-line focus:border-accent cursor-pointer text-ink"
-                              }`}
-                            >
-                              {bureauOptions.map((opt) => (
-                                <option key={opt} value={opt}>{opt}</option>
-                              ))}
-                            </select>
-                            {isBureauLocked && (
-                              <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" title={
-                                w.doc_upload_wa !== "Yes" 
-                                  ? "Locked: 'DOC upload' must be Yes" 
-                                  : (currentUser?.role !== "admin" && currentUser?.role !== "recruiter")
-                                    ? "Locked: Bureau Clearance can only be updated by Recruitment Company"
-                                    : "Locked: Only system admin can modify after change applied"
-                              } />
-                            )}
-                          </div>
-                          <span className="block text-[9px] text-[#8a8175] font-mono pl-1" title="Bureau Change Date">
-                            Date: {w.bureau_date || (w.bureau_completed_at ? w.bureau_completed_at.split("T")[0] : (w.created_at ? w.created_at.split("T")[0] : "—"))}
-                          </span>
-                          {w.doc_upload_wa !== "Yes" && (
-                            <div className="text-[9px] text-bad font-mono pl-1">Requires DOC Upload</div>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Final Arrival Status Selector */}
-                      <td className="p-2 pr-5 min-w-[140px]">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1">
-                            <select
-                              value={w.final_status}
-                              onChange={(e) => handleFieldChange(w.id, "final_status", e.target.value)}
-                              disabled={isFinalStatusLocked}
-                              className={`text-xs px-2 py-1 border rounded outline-none w-full font-medium ${
-                                isFinalStatusLocked 
-                                  ? "bg-stone-50 text-stone-400 border-stone-200 cursor-not-allowed" 
-                                  : "bg-paper/20 border-line focus:border-accent cursor-pointer text-ink"
-                              }`}
-                            >
-                              {finalStatusOptions.map((opt) => (
-                                <option key={opt} value={opt}>{opt}</option>
-                              ))}
-                            </select>
-                            {isFinalStatusLocked && (
-                              <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" title={w.doc_upload_wa !== "Yes" ? "Locked: 'DOC upload' must be Yes" : "Locked: Only system admin can modify after change applied"} />
-                            )}
-                          </div>
-                          <span className="block text-[9px] text-[#8a8175] font-mono pl-1" title="Final Placement Change Date">
-                            Date: {w.final_status_date || (w.created_at ? w.created_at.split("T")[0] : "—")}
-                          </span>
-                          {w.doc_upload_wa !== "Yes" && (
-                            <div className="text-[9px] text-bad font-mono pl-1">Requires DOC Upload</div>
-                          )}
-                        </div>
-                      </td>
-
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
+        
+        {renderWorkersTable(
+          activeWorkers,
+          "No Active Pipeline Candidates Found",
+          "There are no active candidates matching your current filter settings for this project."
+        )}
       </div>
 
     </div>

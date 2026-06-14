@@ -16,7 +16,7 @@ export default function LoginView({ onLogin }: LoginViewProps) {
   const demoAccounts = [
     { label: "Sanken Overseas Recruiter", username: "recruiter", role: "recruiter", name: "Farid (Recruiter)", badge: "Agent" },
     { label: "Engineer (Gate)", username: "engineer", role: "engineer", name: "Ir. Tan (Engineer)", badge: "Engineer" },
-    { label: "Ops Manager", username: "ops", role: "ops", name: "Sarah (Operations)", badge: "Operations" },
+    { label: "Admin 2", username: "ops", role: "ops", name: "Sarah (Admin 2)", badge: "Admin 2" },
     { label: "System Admin", username: "admin", role: "admin", name: "Admin (System Admin)", badge: "Admin" },
     { label: "Executive Viewer", username: "viewer", role: "viewer", name: "Viewer (Dashboard Only)", badge: "Viewer" }
   ];

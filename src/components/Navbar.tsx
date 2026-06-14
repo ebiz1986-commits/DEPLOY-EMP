@@ -70,7 +70,7 @@ export default function Navbar({
     switch (role) {
       case "recruiter": return "Recruiting Agent";
       case "engineer": return "Site Engineer";
-      case "ops": return "Operations Coordinator";
+      case "ops": return "Admin 2";
       case "admin": return "System Administrator";
       case "viewer": return "Viewer";
     }

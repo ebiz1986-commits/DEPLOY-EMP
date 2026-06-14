@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { initializeApp } from "firebase/app";
-import { getFirestore, doc, getDoc, setDoc, initializeFirestore } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, initializeFirestore, setLogLevel } from "firebase/firestore";
 import { DbState, Worker, Category, Company, DropdownOption, User, UserRole } from "./src/types";
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -17,10 +17,12 @@ try {
     const configContent = fs.readFileSync(firebaseConfigPath, "utf8");
     const firebaseConfig = JSON.parse(configContent);
     const fbApp = initializeApp(firebaseConfig);
+    // Suppress verbose SDK logs like idle connection resets and keep only errors
+    setLogLevel("error");
     // Use initializeFirestore with long polling to avoid GRPC connection resets on the backend
     firestoreDb = initializeFirestore(fbApp, {
       experimentalForceLongPolling: true
-    });
+    }, firebaseConfig.firestoreDatabaseId);
     console.log("Firestore successfully initialized on Node.js backend with high-integrity long polling config.");
   } else {
     console.log("Firebase config not found. Running with local storage fallback.");
@@ -33,9 +35,10 @@ try {
 async function saveDatabaseToFirestore(state: DbState) {
   if (!firestoreDb) return;
   try {
+    const sanitizedState = JSON.parse(JSON.stringify(state));
     const docRef = doc(firestoreDb, "state_store", "master");
     await setDoc(docRef, {
-      dbState: state,
+      dbState: sanitizedState,
       updatedAt: new Date().toISOString()
     });
     console.log("Database state successfully synchronized and saved to Cloud Firestore!");

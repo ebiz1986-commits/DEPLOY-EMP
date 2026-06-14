@@ -511,8 +511,18 @@ export default function RecruiterIntakeView({
       if (feedCategoryFilter !== "All" && w.category !== feedCategoryFilter) {
         return false;
       }
-      if (feedStatusFilter !== "All" && w.status !== feedStatusFilter) {
-        return false;
+      if (feedStatusFilter !== "All") {
+        if (feedStatusFilter === "Engineer_Held") {
+          if (w.state !== "held") return false;
+        } else if (feedStatusFilter === "Engineer_Rejected") {
+          if (w.state !== "rejected") return false;
+        } else if (feedStatusFilter === "Engineer_Pending") {
+          if (w.state !== "pending" && w.state !== undefined) return false;
+        } else if (feedStatusFilter === "Engineer_Active") {
+          if (w.state !== "active") return false;
+        } else if (w.status !== feedStatusFilter) {
+          return false;
+        }
       }
       return true;
     });
@@ -525,7 +535,9 @@ export default function RecruiterIntakeView({
     const visaApproved = recruiterWorkers.filter(w => w.status === "Visa Approved (xpact)").length;
     const visaRejected = recruiterWorkers.filter(w => w.status === "Visa Reject (xpact)").length;
     const arrived = recruiterWorkers.filter(w => w.final_status === "Arrived").length;
-    return { total, pending, visaApproved, visaRejected, arrived };
+    const engineerHeld = recruiterWorkers.filter(w => w.state === "held").length;
+    const engineerRejected = recruiterWorkers.filter(w => w.state === "rejected").length;
+    return { total, pending, visaApproved, visaRejected, arrived, engineerHeld, engineerRejected };
   }, [recruiterWorkers]);
 
   // Filter list of workers for the Combined Master Records Archive in Intake portal
@@ -1582,10 +1594,10 @@ export default function RecruiterIntakeView({
             <span className="px-2.5 py-1 bg-stone-100 border border-line rounded-md text-ink">
               Total Feed: <strong className="font-semibold text-accent">{feedStats.total}</strong>
             </span>
-            <span className="px-2.5 py-1 bg-amber-500/10 border border-gold/30 text-gold-900 rounded-md">
+            <span className="px-2.5 py-1 bg-amber-500/10 border border-gold/30 text-gold-900 rounded-md animate-pulse">
               Pending: <strong className="font-bold">{feedStats.pending}</strong>
             </span>
-            <span className="px-2.5 py-1 bg-green-50 text-success-green border border-success-green/20 rounded-md animate-pulse">
+            <span className="px-2.5 py-1 bg-green-50 text-success-green border border-success-green/20 rounded-md">
               Visa Approved: <strong className="font-bold">{feedStats.visaApproved}</strong>
             </span>
             <span className="px-2.5 py-1 bg-red-50 text-bad border border-bad/20 rounded-md">
@@ -1594,6 +1606,16 @@ export default function RecruiterIntakeView({
             <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md">
               Arrived: <strong className="font-bold">{feedStats.arrived}</strong>
             </span>
+            {feedStats.engineerHeld > 0 && (
+              <span className="px-2.5 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded-md font-semibold">
+                ⏸️ Eng Hold: <strong>{feedStats.engineerHeld}</strong>
+              </span>
+            )}
+            {feedStats.engineerRejected > 0 && (
+              <span className="px-2.5 py-1 bg-red-100 text-red-950 border border-red-300 rounded-md font-semibold animate-bounce">
+                ❌ Eng Rejected: <strong>{feedStats.engineerRejected}</strong>
+              </span>
+            )}
           </div>
         </div>
 
@@ -1639,6 +1661,10 @@ export default function RecruiterIntakeView({
                 <option value="Visa Approved (xpact)">Visa Approved (xpact)</option>
                 <option value="Visa Reject (xpact)">Visa Reject (xpact)</option>
                 <option value="Applied second time">Applied second time</option>
+                <option value="Engineer_Held">Engineer: ON HOLD (⏸️)</option>
+                <option value="Engineer_Rejected">Engineer: REJECTED (❌)</option>
+                <option value="Engineer_Pending">Engineer: Awaiting Review (⏳)</option>
+                <option value="Engineer_Active">Engineer: Approved/Cleared (✓)</option>
               </select>
             </div>
           </div>
@@ -1700,67 +1726,112 @@ export default function RecruiterIntakeView({
                     travelColor = "bg-stone-50 text-muted border-line/50";
                   }
 
+                  let rowBg = "hover:bg-paper/30 transition-colors";
+                  if (w.state === "rejected") {
+                    rowBg = "bg-red-500/[0.03] hover:bg-red-500/[0.06] transition-colors border-l-4 border-l-[#A30000]";
+                  } else if (w.state === "held") {
+                    rowBg = "bg-amber-500/[0.03] hover:bg-amber-500/[0.06] transition-colors border-l-4 border-l-amber-500";
+                  }
+
                   return (
-                    <tr key={w.id} className="hover:bg-paper/30 transition-colors">
+                    <tr key={w.id} className={rowBg}>
                       {/* Name */}
                       <td className="p-3 pl-5">
-                        <span className="font-semibold text-ink text-xs block">{w.name}</span>
-                        <span className="text-[10px] text-muted font-mono">{w.id.slice(0, 8)}</span>
-
-                        {/* Attached Document Links */}
-                        {(w.doc_link || w.bulk_doc_link) && (
-                          <div className="mt-1 flex flex-wrap gap-1 items-center">
-                            {w.doc_link && (
-                              <a
-                                href={w.doc_link.startsWith("http") ? w.doc_link : `https://${w.doc_link}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-0.5 font-mono text-[8px] bg-accent/10 border border-accent/20 hover:bg-accent/15 text-accent px-1 py-0.5 rounded font-bold transition-all shrink-0"
-                                title="Download Worker Document"
-                              >
-                                <ExternalLink className="w-2 h-2 shrink-0" />
-                                <span>Worker Doc</span>
-                              </a>
-                            )}
-                            {w.bulk_doc_link && (
-                              <a
-                                href={w.bulk_doc_link.startsWith("http") ? w.bulk_doc_link : `https://${w.bulk_doc_link}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-0.5 font-mono text-[8px] bg-emerald-600/10 border border-emerald-500/20 hover:bg-emerald-600/15 text-emerald-700 px-1 py-0.5 rounded font-bold transition-all shrink-0"
-                                title="Download Bulk Folder"
-                              >
-                                <FolderOpen className="w-2 h-2 shrink-0" />
-                                <span>Bulk Folder</span>
-                              </a>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Quick inline edit url prompt */}
-                        <div className="mt-1">
-                          <input
-                            type="text"
-                            placeholder="Add/Edit Doc Link..."
-                            defaultValue={w.doc_link || ""}
-                            onBlur={async (e) => {
-                              const newVal = e.target.value.trim();
-                              if (newVal !== (w.doc_link || "")) {
-                                await onUpdateWorker(w.id, { doc_link: newVal });
-                              }
-                            }}
-                            onKeyDown={async (e) => {
-                              if (e.key === "Enter") {
-                                const newVal = (e.target as HTMLInputElement).value.trim();
-                                if (newVal !== (w.doc_link || "")) {
-                                  await onUpdateWorker(w.id, { doc_link: newVal });
-                                }
-                                (e.target as HTMLInputElement).blur();
-                              }
-                            }}
-                            className="bg-paper/30 text-[9px] border border-line/45 focus:border-accent rounded px-1 px-1.5 py-0.5 outline-none font-mono text-muted focus:text-ink w-28 focus:w-44 transition-all"
-                            title="Paste URL link here, press Enter or blur to save"
-                          />
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-semibold text-ink text-xs block">{w.name}</span>
+                          {w.state === "rejected" && (
+                            <span className="px-1.5 py-0.5 text-[8.5px] font-mono font-bold bg-stretch bg-red-100 text-[#A30000] border border-red-200 rounded leading-none shrink-0">
+                              ENGINEER REJECTED
+                            </span>
+                          )}
+                          {w.state === "held" && (
+                            <span className="px-1.5 py-0.5 text-[8.5px] font-mono font-bold bg-stretch bg-amber-100 text-amber-800 border border-amber-350 rounded leading-none shrink-0">
+                              ON HOLD
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-0.5 mt-0.5">
+                          <span className="text-[10px] text-muted font-mono block">ID: {w.id.slice(0, 8)}</span>
+                          {w.state === "rejected" && (
+                            <div className="mt-1 bg-red-50 border border-red-200 rounded-md p-2 max-w-[280px] shadow-sm">
+                              <span className="text-[10.5px] font-bold text-[#A30000] font-sans flex items-center gap-1">
+                                ❌ Rejected by Site Engineer
+                              </span>
+                              {w.gate_reject_reason && (
+                                <p className="text-[10px] text-red-700 bg-white border border-red-100 rounded px-1.5 py-1 font-mono block mt-1 mb-1.5 break-words">
+                                  <strong>Reason:</strong> {w.gate_reject_reason}
+                                </p>
+                              )}
+                              
+                              {/* Resubmit and Delete option for Recruiting Agents */}
+                              <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-red-100/60">
+                                <button
+                                  onClick={async (e) => {
+                                    e.preventDefault();
+                                    if (confirm(`Are you sure you want to resubmit candidate "${w.name}" for engineer review?`)) {
+                                      await onUpdateWorker(w.id, {
+                                        state: "pending",
+                                        gate_reject_reason: ""
+                                      });
+                                      onRefresh();
+                                    }
+                                  }}
+                                  className="flex items-center gap-1 px-2 py-1 text-[9.5px] font-bold text-white bg-accent hover:bg-accent/90 rounded border border-accent/20 transition-all cursor-pointer shadow-2xs"
+                                  title="Resubmit worker to the engineer review pool"
+                                >
+                                  🔄 Resubmit
+                                </button>
+                                
+                                {confirmDeleteId === w.id ? (
+                                  <div className="flex items-center gap-1 shrink-0 bg-white px-1.5 py-0.5 rounded border border-red-200">
+                                    <span className="text-[9px] font-bold text-[#A30000] animate-pulse font-mono leading-none shrink-0">Confirm?</span>
+                                    <button
+                                      onClick={async (e) => {
+                                        e.preventDefault();
+                                        if (onDeleteWorker) {
+                                          await onDeleteWorker(w.id);
+                                        }
+                                        setConfirmDeleteId(null);
+                                      }}
+                                      className="px-1 py-0.5 text-[8.5px] font-bold text-white bg-red-600 hover:bg-[#A30000] rounded leading-none cursor-pointer"
+                                    >
+                                      Yes
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        setConfirmDeleteId(null);
+                                      }}
+                                      className="px-1 py-0.5 text-[8.5px] font-semibold text-ink bg-white border border-line rounded leading-none cursor-pointer"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setConfirmDeleteId(w.id);
+                                    }}
+                                    className="flex items-center gap-1 px-2 py-1 text-[9.5px] font-bold text-white bg-red-650 hover:bg-red-750 rounded border border-red-200/20 transition-all cursor-pointer shadow-2xs shadow-red-105"
+                                    title="Delete candidate record permanently"
+                                  >
+                                    🗑️ Delete
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          {w.state === "held" && (
+                            <div className="mt-1 bg-amber-50 border border-amber-250/60 rounded p-1.5 max-w-[240px] shadow-2xs">
+                              <span className="text-[9px] font-bold text-amber-950 font-sans block">
+                                ⏸️ Placed on HOLD by Engineer
+                              </span>
+                              <span className="text-[9px] text-amber-850 font-mono block mt-0.5">
+                                Awaiting approval clearance
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </td>
 
