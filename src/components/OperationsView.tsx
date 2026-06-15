@@ -84,17 +84,25 @@ export default function OperationsView({
     return dropdownOptions.filter((o) => o.field === "final_status").map((o) => o.value);
   }, [dropdownOptions]);
 
+  // Filter workers so unapproved/rejected/held ones do not show up for Admin 2 (ops)
+  const approvedOnlyWorkers = useMemo(() => {
+    if (currentUser?.role === "ops") {
+      return workers.filter((w) => w.state === "active");
+    }
+    return workers;
+  }, [workers, currentUser]);
+
   // Compute counts of workers per bureau category (case-insensitive)
   const bureauAssignmentsCount = useMemo(() => {
     const counts: Record<string, number> = {};
-    workers.forEach(w => {
+    approvedOnlyWorkers.forEach(w => {
       if (w.bureau_category) {
         const key = w.bureau_category.trim().toLowerCase();
         counts[key] = (counts[key] || 0) + 1;
       }
     });
     return counts;
-  }, [workers]);
+  }, [approvedOnlyWorkers]);
 
   // Extract category names for headers
   const categoryNames = useMemo(() => {
@@ -103,8 +111,8 @@ export default function OperationsView({
 
   // Compute scoped worker roster linked exclusively to the active selected project
   const scopedWorkers = useMemo(() => {
-    return workers.filter((w) => w.project_id === selectedProjectId);
-  }, [workers, selectedProjectId]);
+    return approvedOnlyWorkers.filter((w) => w.project_id === selectedProjectId);
+  }, [approvedOnlyWorkers, selectedProjectId]);
 
   // Active list workers (workers with state = active, held, or rejected)
   const activeWorkers = useMemo(() => {
@@ -363,7 +371,7 @@ export default function OperationsView({
   };
 
   const handleFieldChange = async (workerId: string, field: keyof Worker, value: any) => {
-    const worker = workers.find((w) => w.id === workerId);
+    const worker = approvedOnlyWorkers.find((w) => w.id === workerId);
     if (!worker) return;
 
     const updates: Partial<Worker> = { [field]: value };
@@ -850,7 +858,7 @@ export default function OperationsView({
       {/* Search Header component */}
       <CompanyFilterHeader
         companies={companies}
-        workers={workers}
+        workers={approvedOnlyWorkers}
         selectedCompany={selectedCompany}
         setSelectedCompany={setSelectedCompany}
         selectedCategory={selectedCategory}

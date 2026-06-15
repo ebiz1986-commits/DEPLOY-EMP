@@ -63,6 +63,14 @@ export default function DashboardView({
   onDeleteWorker
 }: DashboardViewProps) {
   
+  // Filter workers so unapproved/rejected/held ones do not show up for Admin 2 (ops)
+  const approvedOnlyWorkers = useMemo(() => {
+    if (currentUser?.role === "ops") {
+      return workers.filter((w) => w.state === "active");
+    }
+    return workers;
+  }, [workers, currentUser]);
+
   // Scope filter: lock telemetry statistics and pipeline details on a selected project or view aggregation
   const [projectScope, setProjectScope] = useState<"all" | "selected">("selected");
   
@@ -74,12 +82,12 @@ export default function DashboardView({
 
   // Scoped workers list
   const scopedWorkers = useMemo(() => {
-    let result = projectScope === "all" ? workers : workers.filter((w) => w.project_id === selectedProjectId);
+    let result = projectScope === "all" ? approvedOnlyWorkers : approvedOnlyWorkers.filter((w) => w.project_id === selectedProjectId);
     if (currentUser?.role === "recruiter" && currentUser.recruiter_company) {
       result = result.filter((w) => w.supply_company === currentUser.recruiter_company);
     }
     return result;
-  }, [workers, projectScope, selectedProjectId, currentUser]);
+  }, [approvedOnlyWorkers, projectScope, selectedProjectId, currentUser]);
 
   // States for filtering
   const [selectedCompany, setSelectedCompany] = useState(() => {
@@ -329,7 +337,7 @@ export default function DashboardView({
       {/* Search Header panel with custom props */}
       <CompanyFilterHeader
         companies={companies}
-        workers={workers}
+        workers={approvedOnlyWorkers}
         selectedCompany={selectedCompany}
         setSelectedCompany={setSelectedCompany}
         selectedCategory={selectedCategory}
@@ -530,7 +538,7 @@ export default function DashboardView({
               : (selectedCompany === "All" ? (companies[0]?.name || "KSJ") : selectedCompany);
 
             const limit = cat.company_allocations?.[resolvedCompany] ?? 0;
-            const approvedCount = workers.filter(w => w.category === cat.name && w.supply_company === resolvedCompany && w.state === "active").length;
+            const approvedCount = approvedOnlyWorkers.filter(w => w.category === cat.name && w.supply_company === resolvedCompany && w.state === "active").length;
             const rem = limit - approvedCount;
             return (
               <div key={cat.id} className="bg-paper/50 border border-line p-3 rounded-lg flex flex-col justify-between">
@@ -755,7 +763,7 @@ export default function DashboardView({
                     : companies
                   ).map((co) => {
                     const limit = cq.company_allocations?.[co.name] ?? 0;
-                    const activeCount = workers.filter(w => w.category === cq.name && w.supply_company === co.name && w.state === "active").length;
+                    const activeCount = approvedOnlyWorkers.filter(w => w.category === cq.name && w.supply_company === co.name && w.state === "active").length;
                     const rem = Math.max(0, limit - activeCount);
                     return (
                       <div key={co.id} className="text-[10px] flex justify-between font-mono text-muted leading-tight border-b border-dashed border-line/10 pb-0.5 last:border-0 last:pb-0">
