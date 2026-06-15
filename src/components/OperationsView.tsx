@@ -609,22 +609,73 @@ export default function OperationsView({
                           );
                           const xpactRemaining = xa ? xa.qty - count : null;
 
+                          const bureauMax = ba ? ba.qty : 0;
+                          const bureauPct = bureauMax > 0 ? (count / bureauMax) * 100 : 0;
+
+                          const xpactMax = xa ? xa.qty : 0;
+                          const xpactPct = xpactMax > 0 ? (count / xpactMax) * 100 : 0;
+
                           return (
-                            <div className="flex flex-wrap gap-1.5 mt-1 text-[10px] font-mono leading-none select-none">
-                              <span className={`px-2 py-1 rounded border-2 font-bold ${
-                                bureauRemaining < 1 
-                                  ? "bg-red-100 text-red-950 border-red-700 font-extrabold" 
-                                  : "bg-emerald-100/40 text-emerald-950 border-emerald-600"
-                              }`}>
-                                Remaining Bureau ; {bureauRemaining}
-                              </span>
-                              <span className={`px-2 py-1 rounded border-2 font-bold ${
-                                xpactRemaining !== null && xpactRemaining < 1
-                                  ? "bg-red-100 text-red-950 border-red-700 font-extrabold"
-                                  : "bg-indigo-100/40 text-indigo-950 border-indigo-600"
-                              }`}>
-                                xpact :{xpactRemaining ?? 0}
-                              </span>
+                            <div className="flex flex-col gap-2 mt-1 w-full select-none">
+                              {/* Bureau Quota Bar */}
+                              {ba && (
+                                <div className="flex flex-col gap-1 w-full bg-paper/30 p-1.5 rounded-lg border border-line/30">
+                                  <div className="flex justify-between items-center text-[10px] font-mono leading-none">
+                                    <span className="font-bold text-slate-800">Bureau: {count}/{bureauMax}</span>
+                                    {bureauRemaining < 1 ? (
+                                      <span className="text-[8px] font-bold text-red-650 bg-red-50 px-1 py-0.2 rounded border border-red-250 animate-pulse">🔴 FULL</span>
+                                    ) : bureauPct >= 85 ? (
+                                      <span className="text-[8px] font-bold text-rose-650 bg-rose-50 px-1 py-0.2 rounded border border-rose-200">⚠️ {bureauRemaining} left</span>
+                                    ) : (
+                                      <span className="text-[8px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200 font-semibold">🟢 {bureauRemaining} left</span>
+                                    )}
+                                  </div>
+                                  <div className="w-full bg-paper rounded-full h-1.5 overflow-hidden border border-line/45">
+                                    <div 
+                                      className={`h-full rounded-full transition-all duration-300 ${
+                                        bureauRemaining < 1 
+                                          ? "bg-red-500 animate-pulse" 
+                                          : bureauPct >= 85 
+                                            ? "bg-rose-500" 
+                                            : bureauPct >= 50 
+                                              ? "bg-amber-400" 
+                                              : "bg-[#10B981]"
+                                      }`}
+                                      style={{ width: `${Math.min(100, bureauPct)}%` }}
+                                    ></div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* XPACT Quota Bar */}
+                              {xa && (
+                                <div className="flex flex-col gap-1 w-full bg-paper/30 p-1.5 rounded-lg border border-line/30">
+                                  <div className="flex justify-between items-center text-[10px] font-mono leading-none">
+                                    <span className="font-bold text-slate-800">XPACT: {count}/{xpactMax}</span>
+                                    {xpactRemaining !== null && xpactRemaining < 1 ? (
+                                      <span className="text-[8px] font-bold text-red-650 bg-red-50 px-1 py-0.2 rounded border border-red-250 animate-pulse">🔴 FULL</span>
+                                    ) : xpactPct >= 85 ? (
+                                      <span className="text-[8px] font-bold text-rose-650 bg-rose-50 px-1 py-0.2 rounded border border-rose-200">⚠️ {xpactRemaining} left</span>
+                                    ) : (
+                                      <span className="text-[8px] font-bold text-indigo-650 bg-indigo-50 px-1 py-0.2 rounded border border-indigo-200">🟢 {xpactRemaining} left</span>
+                                    )}
+                                  </div>
+                                  <div className="w-full bg-paper rounded-full h-1.5 overflow-hidden border border-line/45">
+                                    <div 
+                                      className={`h-full rounded-full transition-all duration-300 ${
+                                        xpactRemaining !== null && xpactRemaining < 1 
+                                          ? "bg-red-500 animate-pulse" 
+                                          : xpactPct >= 85 
+                                            ? "bg-rose-500" 
+                                            : xpactPct >= 50 
+                                              ? "bg-amber-400" 
+                                              : "bg-indigo-600"
+                                      }`}
+                                      style={{ width: `${Math.min(100, xpactPct)}%` }}
+                                    ></div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           );
                         })()}

@@ -102,6 +102,18 @@ export default function AdminPanel({
   const [localBureau, setLocalBureau] = useState<BureauAllocation[]>([]);
   const [localXpact, setLocalXpact] = useState<XpactAllocation[]>([]);
 
+  // Compute counts of workers per bureau category (case-insensitive) for visual quota bars
+  const bureauAssignmentsCount = useMemo(() => {
+    const counts: Record<string, number> = {};
+    workers.forEach(w => {
+      if (w.bureau_category) {
+        const key = w.bureau_category.trim().toLowerCase();
+        counts[key] = (counts[key] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [workers]);
+
   const [newBureauCategory, setNewBureauCategory] = useState("");
   const [newBureauQty, setNewBureauQty] = useState<string>("");
   const [newBureauRef, setNewBureauRef] = useState("");
@@ -1281,32 +1293,55 @@ export default function AdminPanel({
                                     </div>
                                   </div>
                                 ) : (
-                                  <div className="flex flex-col gap-1 py-1">
+                                  <div className="flex flex-col gap-1.5 py-1">
                                     {/* Limits block statistics */}
                                     <div className="flex items-center justify-between gap-1 text-[11px]">
-                                      <span className="font-mono text-ink font-semibold">
-                                        {limit} slots allotted
+                                      <span className="font-mono text-ink font-semibold flex items-center gap-1">
+                                        <Building2 className="w-3 h-3 text-stone-500" />
+                                        <span>{limit} slots allotted</span>
                                       </span>
-                                      <span className={`font-mono text-[10px] font-bold ${
-                                        isLocked ? "text-bad" : "text-success-green"
-                                      }`}>
-                                        {rem} remaining open
-                                      </span>
+                                      
+                                      {/* Color-coded remaining indicator */}
+                                      {percent >= 100 ? (
+                                        <span className="font-mono text-[9px] font-extrabold text-[#DC2626] bg-red-100/80 px-2 py-0.5 rounded border border-red-300 animate-pulse flex items-center gap-0.5">
+                                          🔴 FULL / EXHAUSTED
+                                        </span>
+                                      ) : percent >= 85 ? (
+                                        <span className="font-mono text-[9px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 flex items-center gap-0.5">
+                                          ⚠️ NEAR LIMIT ({rem} open)
+                                        </span>
+                                      ) : percent >= 50 ? (
+                                        <span className="font-mono text-[9px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/80 flex items-center gap-0.5">
+                                          ⚡ MODERATE ({rem} open)
+                                        </span>
+                                      ) : (
+                                        <span className="font-mono text-[9px] font-bold text-[#059669] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-250 flex items-center gap-0.5">
+                                          ✓ STABLE ({rem} open)
+                                        </span>
+                                      )}
                                     </div>
 
                                     {/* Live occupancy progress bar */}
-                                    <div className="w-full bg-paper rounded-full h-2 overflow-hidden border border-line/40">
+                                    <div className="w-full bg-paper rounded-full h-2.5 overflow-hidden border border-line/50 p-[1px]">
                                       <div 
-                                        className={`h-full rounded-full transition-all duration-300 ${
-                                          isLocked ? "bg-bad/70 animate-pulse" : "bg-accent"
+                                        className={`h-full rounded-full transition-all duration-500 ${
+                                          percent >= 100 
+                                            ? "bg-gradient-to-r from-red-500 to-red-700 animate-pulse" 
+                                            : percent >= 85 
+                                              ? "bg-gradient-to-r from-rose-500 to-rose-600" 
+                                              : percent >= 50 
+                                                ? "bg-gradient-to-r from-amber-400 to-amber-500" 
+                                                : "bg-gradient-to-r from-emerald-400 to-emerald-500"
                                         }`}
                                         style={{ width: `${Math.min(100, percent)}%` }}
                                       ></div>
                                     </div>
 
-                                    <div className="text-[9px] text-muted font-mono flex justify-between">
-                                      <span>Occupied capacity: {activeCount} slots used</span>
-                                      <span>({percent.toFixed(0)}%)</span>
+                                    <div className="text-[9.5px] text-muted font-mono flex justify-between px-0.5">
+                                      <span className="font-medium text-stone-500">Occupied: <strong className="text-stone-800">{activeCount}</strong>/{limit} used</span>
+                                      <span className={`font-bold ${
+                                        percent >= 100 ? "text-red-650" : percent >= 85 ? "text-rose-600" : percent >= 50 ? "text-amber-600" : "text-emerald-600"
+                                      }`}>{percent.toFixed(0)}%</span>
                                     </div>
                                   </div>
                                 )}
@@ -2278,16 +2313,17 @@ export default function AdminPanel({
                       <tr className="border-b border-line text-muted font-mono uppercase text-[10px] tracking-wider font-semibold">
                         <th className="py-2 w-8 text-center"></th>
                         <th className="py-2 text-[10px]">Bureau Category</th>
-                        <th className="py-2 w-24 text-right text-[10px]">Total Qty</th>
-                        <th className="py-2 w-28 text-center text-[10px]">Last Ref No</th>
-                        <th className="py-2 text-center w-36 text-[10px]">Saved Date</th>
-                        <th className="py-2 text-right w-16 text-[10px]">Remove</th>
+                        <th className="py-2 w-20 text-right text-[10px]">Total Qty</th>
+                        <th className="py-2 text-left text-[10px] pl-4 w-44">Live Occupancy</th>
+                        <th className="py-2 w-24 text-center text-[10px]">Last Ref No</th>
+                        <th className="py-2 text-center w-28 text-[10px]">Saved Date</th>
+                        <th className="py-2 text-right w-12 text-[10px]">Remove</th>
                       </tr>
                     </thead>
                     <tbody>
                       {localBureau.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="py-8 text-center text-muted text-xs italic">
+                          <td colSpan={7} className="py-8 text-center text-muted text-xs italic">
                             No Bureau Allocation categories defined yet. Use the tool below to add.
                           </td>
                         </tr>
@@ -2295,6 +2331,13 @@ export default function AdminPanel({
                         localBureau.map((item, index) => {
                           const hasHistory = item.additions && item.additions.length > 0;
                           const isExpanded = !!expandedBureauHistories[item.id];
+                          
+                          // Utilization stats
+                          const used = bureauAssignmentsCount[item.category.trim().toLowerCase()] || 0;
+                          const limit = item.qty || 0;
+                          const pct = limit > 0 ? (used / limit) * 100 : 0;
+                          const remaining = Math.max(0, limit - used);
+
                           return (
                             <React.Fragment key={item.id || index}>
                               <tr className="border-b border-line/50 hover:bg-paper/30">
@@ -2333,11 +2376,44 @@ export default function AdminPanel({
                                       updated[index].qty = newQty;
                                       setLocalBureau(updated);
                                     }}
-                                    className="bg-transparent border border-line/45 focus:border-accent text-right w-20 outline-none focus:bg-paper px-1.5 py-0.5 rounded text-xs font-mono"
+                                    className="bg-transparent border border-line/45 focus:border-accent text-right w-16 outline-none focus:bg-paper px-1.5 py-0.5 rounded text-xs font-mono"
                                     placeholder="Qty"
                                     min="0"
                                   />
                                 </td>
+                                
+                                {/* LIVE OCCUPANCY COLUMN */}
+                                <td className="py-2.5 pl-4 pr-2">
+                                  <div className="flex flex-col gap-1 min-w-[130px]">
+                                    <div className="flex justify-between items-center text-[10px] font-mono leading-none">
+                                      <span className="font-bold text-stone-700">{used}/{limit} used</span>
+                                      {pct >= 100 ? (
+                                        <span className="text-[9px] font-bold text-red-650 bg-red-50 px-1 py-0.2 rounded border border-red-250 animate-pulse">🔴 FULL</span>
+                                      ) : pct >= 85 ? (
+                                        <span className="text-[9px] font-bold text-rose-650 bg-rose-50 px-1 py-0.2 rounded border border-rose-200">⚠️ OVER 85%</span>
+                                      ) : pct >= 50 ? (
+                                        <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1 py-0.2 rounded border border-amber-200">⚡ HALF USED</span>
+                                      ) : (
+                                        <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">🟢 STABLE</span>
+                                      )}
+                                    </div>
+                                    <div className="w-full bg-paper rounded-full h-1.5 overflow-hidden border border-line/40">
+                                      <div 
+                                        className={`h-full rounded-full transition-all duration-300 ${
+                                          pct >= 100 
+                                            ? "bg-red-500 animate-pulse" 
+                                            : pct >= 85 
+                                              ? "bg-rose-500" 
+                                              : pct >= 50 
+                                                ? "bg-amber-400" 
+                                                : "bg-[#10B981]"
+                                        }`}
+                                        style={{ width: `${Math.min(100, pct)}%` }}
+                                      ></div>
+                                    </div>
+                                  </div>
+                                </td>
+
                                 <td className="py-2.5 text-center font-mono text-[11px] text-ink">
                                   {item.ref_no || "—"}
                                 </td>
@@ -2359,8 +2435,8 @@ export default function AdminPanel({
                                 </td>
                               </tr>
                               {isExpanded && hasHistory && (
-                                <tr className="bg-paper/20">
-                                  <td colSpan={6} className="py-2 px-3 border-b border-line/40 rounded-lg">
+                                <tr>
+                                  <td colSpan={7} className="py-2 px-3 border-b border-line/40 rounded-lg bg-paper/20">
                                     <div className="pl-6 pr-4 py-1.5 space-y-1.5">
                                       <div className="flex justify-between items-center text-[10px] font-mono text-muted uppercase tracking-wider font-bold">
                                         <span>Additions Registry History:</span>
@@ -2543,16 +2619,17 @@ export default function AdminPanel({
                       <tr className="border-b border-line text-muted font-mono uppercase text-[10px] tracking-wider font-semibold">
                         <th className="py-2 w-8 text-center"></th>
                         <th className="py-2 text-[10px]">XPACT Category</th>
-                        <th className="py-2 w-24 text-right text-[10px]">Total Qty</th>
-                        <th className="py-2 w-28 text-center text-[10px]">Last Ref No</th>
-                        <th className="py-2 text-center w-36 text-[10px]">Saved Date</th>
-                        <th className="py-2 text-right w-16 text-[10px]">Remove</th>
+                        <th className="py-2 w-20 text-right text-[10px]">Total Qty</th>
+                        <th className="py-2 text-left text-[10px] pl-4 w-44">Live Occupancy</th>
+                        <th className="py-2 w-24 text-center text-[10px]">Last Ref No</th>
+                        <th className="py-2 text-center w-28 text-[10px]">Saved Date</th>
+                        <th className="py-2 text-right w-12 text-[10px]">Remove</th>
                       </tr>
                     </thead>
                     <tbody>
                       {localXpact.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="py-8 text-center text-muted text-xs italic">
+                          <td colSpan={7} className="py-8 text-center text-muted text-xs italic">
                             No XPACT Quota Allocation categories defined yet. Use the tool below to add.
                           </td>
                         </tr>
@@ -2560,6 +2637,13 @@ export default function AdminPanel({
                         localXpact.map((item, index) => {
                           const hasHistory = item.additions && item.additions.length > 0;
                           const isExpanded = !!expandedXpactHistories[item.id];
+                          
+                          // Utilization stats
+                          const used = bureauAssignmentsCount[item.category.trim().toLowerCase()] || 0;
+                          const limit = item.qty || 0;
+                          const pct = limit > 0 ? (used / limit) * 100 : 0;
+                          const remaining = Math.max(0, limit - used);
+
                           return (
                             <React.Fragment key={item.id || index}>
                               <tr className="border-b border-line/50 hover:bg-paper/30">
@@ -2597,11 +2681,44 @@ export default function AdminPanel({
                                       updated[index].qty = isNaN(val) ? 0 : val;
                                       setLocalXpact(updated);
                                     }}
-                                    className="bg-transparent border border-line/45 focus:border-accent text-right w-20 outline-none focus:bg-paper px-1.5 py-0.5 rounded text-xs font-mono"
+                                    className="bg-transparent border border-line/45 focus:border-accent text-right w-16 outline-none focus:bg-paper px-1.5 py-0.5 rounded text-xs font-mono"
                                     placeholder="Qty"
                                     min="0"
                                   />
                                 </td>
+
+                                {/* LIVE OCCUPANCY COLUMN */}
+                                <td className="py-2.5 pl-4 pr-2">
+                                  <div className="flex flex-col gap-1 min-w-[130px]">
+                                    <div className="flex justify-between items-center text-[10px] font-mono leading-none">
+                                      <span className="font-bold text-stone-700">{used}/{limit} used</span>
+                                      {pct >= 100 ? (
+                                        <span className="text-[9px] font-bold text-red-650 bg-red-50 px-1 py-0.2 rounded border border-red-250 animate-pulse">🔴 FULL</span>
+                                      ) : pct >= 85 ? (
+                                        <span className="text-[9px] font-bold text-rose-650 bg-rose-50 px-1 py-0.2 rounded border border-rose-200">⚠️ OVER 85%</span>
+                                      ) : pct >= 50 ? (
+                                        <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1 py-0.2 rounded border border-amber-200">⚡ HALF USED</span>
+                                      ) : (
+                                        <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">🟢 STABLE</span>
+                                      )}
+                                    </div>
+                                    <div className="w-full bg-paper rounded-full h-1.5 overflow-hidden border border-line/40">
+                                      <div 
+                                        className={`h-full rounded-full transition-all duration-300 ${
+                                          pct >= 100 
+                                            ? "bg-red-500 animate-pulse" 
+                                            : pct >= 85 
+                                              ? "bg-rose-500" 
+                                              : pct >= 50 
+                                                ? "bg-amber-400" 
+                                                : "bg-[#10B981]"
+                                        }`}
+                                        style={{ width: `${Math.min(100, pct)}%` }}
+                                      ></div>
+                                    </div>
+                                  </div>
+                                </td>
+
                                 <td className="py-2.5 text-center font-mono text-[11px] text-ink">
                                   {item.ref_no || "—"}
                                 </td>
@@ -2624,7 +2741,7 @@ export default function AdminPanel({
                               </tr>
                               {isExpanded && hasHistory && (
                                 <tr className="bg-paper/20">
-                                  <td colSpan={6} className="py-2 px-3 border-b border-line/40 rounded-lg">
+                                  <td colSpan={7} className="py-2 px-3 border-b border-line/40 rounded-lg">
                                     <div className="pl-6 pr-4 py-1.5 space-y-1.5">
                                       <div className="flex justify-between items-center text-[10px] font-mono text-muted uppercase tracking-wider font-bold">
                                         <span>Additions Registry History:</span>
