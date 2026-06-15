@@ -1107,9 +1107,15 @@ export default function RecruiterIntakeView({
                   <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
                   Bureau Pending List
                 </span>
-                <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300 rounded-full shrink-0">
-                  {pendingBureauWorkers.length} Pending
-                </span>
+                {pendingBureauWorkers.length > 0 ? (
+                  <span className="px-2.5 py-0.5 text-[11px] font-mono font-extrabold bg-red-50 text-red-650 border border-red-250 rounded-full shrink-0 animate-flash-red">
+                    {pendingBureauWorkers.length} Pending
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300 rounded-full shrink-0">
+                    {pendingBureauWorkers.length} Pending
+                  </span>
+                )}
               </div>
 
               <div className="flex-1 overflow-y-auto space-y-3.5 max-h-[420px] pr-1.5 scrollbar-thin">
@@ -1299,9 +1305,15 @@ export default function RecruiterIntakeView({
                   <Plane className="w-3.5 h-3.5 text-emerald-600 animate-pulse shrink-0" />
                   Ready for Departure List
                 </span>
-                <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-full shrink-0">
-                  {readyForDepartureWorkers.length} Ready
-                </span>
+                {readyForDepartureWorkers.length > 0 ? (
+                  <span className="px-2.5 py-0.5 text-[11px] font-mono font-extrabold bg-red-50 text-red-650 border border-red-250 rounded-full shrink-0 animate-flash-red">
+                    {readyForDepartureWorkers.length} Ready
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-full shrink-0">
+                    {readyForDepartureWorkers.length} Ready
+                  </span>
+                )}
               </div>
 
               <div className="flex-1 overflow-y-auto space-y-3.5 max-h-[420px] pr-1.5 scrollbar-thin">
