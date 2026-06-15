@@ -649,86 +649,86 @@ export default function AdminPanel({
         
         <button
           onClick={() => setActiveSubTab("project")}
-          className={`px-4 py-2 text-xs font-mono uppercase tracking-wider border-b-2 font-semibold whitespace-nowrap cursor-pointer transition-colors ${
+          className={`px-4 py-2.5 text-[11px] font-sans uppercase tracking-widest border-b-2 font-bold whitespace-nowrap cursor-pointer transition-colors ${
             activeSubTab === "project"
               ? "border-accent text-accent"
               : "border-transparent text-muted hover:text-ink"
           }`}
         >
-          <Briefcase className="w-3.5 h-3.5 inline mr-1" />
-          Project Settings
+          <Briefcase className="w-3.5 h-3.5 inline mr-1.5" />
+          PROJECT SETTINGS
         </button>
 
         <button
           onClick={() => setActiveSubTab("companies")}
-          className={`px-4 py-2 text-xs font-mono uppercase tracking-wider border-b-2 font-semibold whitespace-nowrap cursor-pointer transition-colors ${
+          className={`px-4 py-2.5 text-[11px] font-sans uppercase tracking-widest border-b-2 font-bold whitespace-nowrap cursor-pointer transition-colors ${
             activeSubTab === "companies"
               ? "border-accent text-accent"
               : "border-transparent text-muted hover:text-ink"
           }`}
         >
-          <Building2 className="w-3.5 h-3.5 inline mr-1" />
-          Supply Companies / Vendors
+          <Building2 className="w-3.5 h-3.5 inline mr-1.5" />
+          SUPPLY COMPANIES / VENDORS
         </button>
 
         <button
           onClick={() => setActiveSubTab("quotas")}
-          className={`px-4 py-2 text-xs font-mono uppercase tracking-wider border-b-2 font-semibold whitespace-nowrap cursor-pointer transition-colors ${
+          className={`px-4 py-2.5 text-[11px] font-sans uppercase tracking-widest border-b-2 font-bold whitespace-nowrap cursor-pointer transition-colors ${
             activeSubTab === "quotas"
               ? "border-accent text-accent"
               : "border-transparent text-muted hover:text-ink"
           }`}
         >
-          <Layers className="w-3.5 h-3.5 inline mr-1" />
-          Labor Allocations
+          <Layers className="w-3.5 h-3.5 inline mr-1.5" />
+          LABOR ALLOCATIONS
         </button>
 
         <button
           onClick={() => setActiveSubTab("dropdowns")}
-          className={`px-4 py-2 text-xs font-mono uppercase tracking-wider border-b-2 font-semibold whitespace-nowrap cursor-pointer transition-colors ${
+          className={`px-4 py-2.5 text-[11px] font-sans uppercase tracking-widest border-b-2 font-bold whitespace-nowrap cursor-pointer transition-colors ${
             activeSubTab === "dropdowns"
               ? "border-accent text-accent"
               : "border-transparent text-muted hover:text-ink"
           }`}
         >
-          <Tags className="w-3.5 h-3.5 inline mr-1" />
-          Dropdown Options
+          <Tags className="w-3.5 h-3.5 inline mr-1.5" />
+          DROPDOWN OPTIONS
         </button>
 
         <button
           onClick={() => setActiveSubTab("users")}
-          className={`px-4 py-2 text-xs font-mono uppercase tracking-wider border-b-2 font-semibold whitespace-nowrap cursor-pointer transition-colors ${
+          className={`px-4 py-2.5 text-[11px] font-sans uppercase tracking-widest border-b-2 font-bold whitespace-nowrap cursor-pointer transition-colors ${
             activeSubTab === "users"
               ? "border-accent text-accent"
               : "border-transparent text-muted hover:text-ink"
           }`}
         >
-          <Users2 className="w-3.5 h-3.5 inline mr-1" />
-          Credentials Manager
+          <Users2 className="w-3.5 h-3.5 inline mr-1.5" />
+          CREDENTIALS MANAGER
         </button>
 
         <button
           onClick={() => setActiveSubTab("gdrive")}
-          className={`px-4 py-2 text-xs font-mono uppercase tracking-wider border-b-2 font-semibold whitespace-nowrap cursor-pointer transition-colors ${
+          className={`px-4 py-2.5 text-[11px] font-sans uppercase tracking-widest border-b-2 font-bold whitespace-nowrap cursor-pointer transition-colors ${
             activeSubTab === "gdrive"
               ? "border-accent text-accent"
               : "border-transparent text-muted hover:text-ink"
           }`}
         >
-          <Cloud className="w-3.5 h-3.5 inline mr-1 text-emerald-500 animate-pulse" />
-          Google Drive Backup
+          <Cloud className="w-3.5 h-3.5 inline mr-1.5 text-emerald-500 animate-pulse" />
+          GOOGLE DRIVE BACKUP
         </button>
 
         <button
           onClick={() => setActiveSubTab("bureau_xpact")}
-          className={`px-4 py-2 text-xs font-mono uppercase tracking-wider border-b-2 font-semibold whitespace-nowrap cursor-pointer transition-colors ${
+          className={`px-4 py-2.5 text-[11px] font-sans uppercase tracking-widest border-b-2 font-bold whitespace-nowrap cursor-pointer transition-colors ${
             activeSubTab === "bureau_xpact"
               ? "border-accent text-accent"
               : "border-transparent text-muted hover:text-ink"
           }`}
         >
-          <Sliders className="w-3.5 h-3.5 inline mr-1" />
-          Bureau & xpat Allocation
+          <Sliders className="w-3.5 h-3.5 inline mr-1.5" />
+          BUREAU & XPAT ALLOCATION
         </button>
 
       </div>
@@ -766,12 +766,12 @@ export default function AdminPanel({
 
               <div className="border border-line/60 rounded-lg overflow-hidden">
                 <table className="w-full text-left text-xs bg-card">
-                  <thead className="bg-paper text-muted font-mono text-[9px] uppercase">
+                  <thead className="bg-paper text-muted font-sans text-[10px] font-bold uppercase tracking-wider">
                     <tr>
-                      <th className="p-2.5 w-12 text-center">Active</th>
-                      <th className="p-2.5">Project Details</th>
-                      <th className="p-2.5">Client & site</th>
-                      <th className="p-2.5 text-right">Actions</th>
+                      <th className="p-2.5 w-12 text-center uppercase tracking-wider">Active</th>
+                      <th className="p-2.5 uppercase tracking-wider">Project Details</th>
+                      <th className="p-2.5 uppercase tracking-wider">Client & site</th>
+                      <th className="p-2.5 text-right uppercase tracking-wider pr-4">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line/40">
@@ -972,83 +972,83 @@ export default function AdminPanel({
                     </p>
                   </div>
 
-                  <form onSubmit={handleUpdateProject} className="space-y-3.5">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-mono text-muted uppercase tracking-wider block">Project Name (Title) *</label>
+                  <form onSubmit={handleUpdateProject} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-sans text-stone-600 uppercase font-bold tracking-wider block">PROJECT NAME (TITLE) *</label>
                       <input
                         type="text"
                         value={projName}
                         onChange={(e) => setProjName(e.target.value)}
                         placeholder="e.g. Sanken Airport Terminal Expansion"
-                        className="w-full bg-paper/20 border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                        className="w-full bg-white border border-stone-350 rounded-md px-3 py-2 text-xs outline-none focus:border-stone-500 focus:ring-1 focus:ring-stone-500 text-stone-900 transition-all font-sans"
                         required
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-mono text-muted uppercase tracking-wider block">Client</label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-sans text-stone-600 uppercase font-bold tracking-wider block">CLIENT</label>
                         <input
                           type="text"
                           value={projClient}
                           onChange={(e) => setProjClient(e.target.value)}
                           placeholder="e.g. Malaysia Civil Aviation"
-                          className="w-full bg-paper/20 border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                          className="w-full bg-white border border-stone-350 rounded-md px-3 py-2 text-xs outline-none focus:border-stone-500 focus:ring-1 focus:ring-stone-500 text-stone-900 transition-all font-sans"
                         />
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-mono text-muted uppercase tracking-wider block">Contract #</label>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-sans text-stone-600 uppercase font-bold tracking-wider block">CONTRACT #</label>
                         <input
                           type="text"
                           value={projContract}
                           onChange={(e) => setProjContract(e.target.value)}
                           placeholder="e.g. APT3-2026-SANKEN-0012"
-                          className="w-full bg-paper/20 border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                          className="w-full bg-white border border-stone-350 rounded-md px-3 py-2 text-xs outline-none focus:border-stone-500 focus:ring-1 focus:ring-stone-500 text-stone-900 transition-all font-sans"
                         />
                       </div>
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-mono text-muted uppercase tracking-wider block">Core Site Location</label>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-sans text-stone-600 uppercase font-bold tracking-wider block">CORE SITE LOCATION</label>
                       <input
                         type="text"
                         value={projLocation}
                         onChange={(e) => setProjLocation(e.target.value)}
                         placeholder="e.g. KLIA Terminal 3 Outer Sector"
-                        className="w-full bg-paper/20 border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                        className="w-full bg-white border border-stone-350 rounded-md px-3 py-2 text-xs outline-none focus:border-stone-500 focus:ring-1 focus:ring-stone-500 text-stone-900 transition-all font-sans"
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-mono text-muted uppercase tracking-wider block">Site Engineer</label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-sans text-stone-600 uppercase font-bold tracking-wider block">SITE ENGINEER</label>
                         <input
                           type="text"
                           value={projEngineer}
                           onChange={(e) => setProjEngineer(e.target.value)}
                           placeholder="e.g. Ir. Tan"
-                          className="w-full bg-paper/20 border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                          className="w-full bg-white border border-stone-350 rounded-md px-3 py-2 text-xs outline-none focus:border-stone-500 focus:ring-1 focus:ring-stone-500 text-stone-900 transition-all font-sans"
                         />
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-mono text-muted uppercase tracking-wider block">Lead Coordinator</label>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-sans text-stone-600 uppercase font-bold tracking-wider block">LEAD COORDINATOR</label>
                         <input
                           type="text"
                           value={projAdmin}
                           onChange={(e) => setProjAdmin(e.target.value)}
                           placeholder="e.g. Admin Coordinator"
-                          className="w-full bg-paper/20 border border-line rounded px-2.5 py-1.5 text-xs outline-none focus:border-accent text-ink"
+                          className="w-full bg-white border border-stone-350 rounded-md px-3 py-2 text-xs outline-none focus:border-stone-500 focus:ring-1 focus:ring-stone-500 text-stone-900 transition-all font-sans"
                         />
                       </div>
                     </div>
 
                     <button
                       type="submit"
-                      className="w-full py-2 bg-accent hover:bg-accent/90 text-white rounded text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer"
+                      className="w-full py-3 bg-[#1e1c3a] hover:bg-[#2b2851] text-[#fdfcf7] rounded text-xs font-sans font-bold uppercase tracking-widest transition-all duration-150 cursor-pointer shadow-md hover:shadow-lg mt-2 text-center"
                     >
-                      Save/Update Project Details
+                      SAVE/UPDATE PROJECT DETAILS
                     </button>
                   </form>
                 </>
@@ -2350,12 +2350,6 @@ export default function AdminPanel({
                                     onClick={() => {
                                       const updated = localBureau.filter((_, i) => i !== index);
                                       setLocalBureau(updated);
-
-                                      // Sync to XPACT too
-                                      const updatedXpact = localXpact.filter(
-                                        x => x.category.trim().toLowerCase() !== item.category.trim().toLowerCase()
-                                      );
-                                      setLocalXpact(updatedXpact);
                                     }}
                                     className="text-muted hover:text-bad p-1 transition-colors rounded hover:bg-red-50 cursor-pointer inline-flex"
                                     title="Remove row"
@@ -2481,22 +2475,6 @@ export default function AdminPanel({
                         updated[existingIndex] = target;
                         setLocalBureau(updated);
 
-                        // Ensure category exists in XPACT too but with empty details
-                        const xpactIndex = localXpact.findIndex(
-                          x => x.category.trim().toLowerCase() === trimmedCat.toLowerCase()
-                        );
-                        if (xpactIndex === -1) {
-                          const newXpactRow: XpactAllocation = {
-                            id: "xpact-" + Date.now() + Math.random().toString(36).substr(2, 4),
-                            category: trimmedCat,
-                            qty: 0,
-                            last_updated: "",
-                            ref_no: "",
-                            additions: []
-                          };
-                          setLocalXpact([...localXpact, newXpactRow]);
-                        }
-
                         setNewBureauCategory("");
                         setNewBureauQty("");
                         setNewBureauRef("");
@@ -2513,22 +2491,6 @@ export default function AdminPanel({
                           ]
                         };
                         setLocalBureau([...localBureau, newRow]);
-
-                        // Ensure category exists in XPACT too but with empty details
-                        const xpactIndex = localXpact.findIndex(
-                          x => x.category.trim().toLowerCase() === trimmedCat.toLowerCase()
-                        );
-                        if (xpactIndex === -1) {
-                          const newXpactRow: XpactAllocation = {
-                            id: "xpact-" + Date.now() + Math.random().toString(36).substr(2, 4),
-                            category: trimmedCat,
-                            qty: 0,
-                            last_updated: "",
-                            ref_no: "",
-                            additions: []
-                          };
-                          setLocalXpact([...localXpact, newXpactRow]);
-                        }
 
                         setNewBureauCategory("");
                         setNewBureauQty("");
@@ -2552,11 +2514,8 @@ export default function AdminPanel({
                     type="button"
                     onClick={async () => {
                       const success = await onUpdateBureauAllocations(localBureau);
-                      const successXpact = await onUpdateXpactAllocations(localXpact);
-                      if (success && successXpact) {
-                        showSuccess("Bureau and XPACT allocations saved successfully with all reference logs intact!");
-                      } else if (success) {
-                        showSuccess("Bureau allocations saved on the server (XPACT failed).");
+                      if (success) {
+                        showSuccess("Bureau allocations saved successfully with all reference logs intact!");
                       } else {
                         showError("Failed to save Bureau allocations.");
                       }
@@ -2780,22 +2739,6 @@ export default function AdminPanel({
                         updated[existingIndex] = target;
                         setLocalXpact(updated);
 
-                        // Ensure category exists in Bureau too but with empty details
-                        const bureauIndex = localBureau.findIndex(
-                          b => b.category.trim().toLowerCase() === trimmedCat.toLowerCase()
-                        );
-                        if (bureauIndex === -1) {
-                          const newBureauRow: BureauAllocation = {
-                            id: "bureau-" + Date.now() + Math.random().toString(36).substr(2, 4),
-                            category: trimmedCat,
-                            qty: 0,
-                            last_updated: "",
-                            ref_no: "",
-                            additions: []
-                          };
-                          setLocalBureau([...localBureau, newBureauRow]);
-                        }
-
                         setNewXpactCategory("");
                         setNewXpactQty("");
                         setNewXpactRef("");
@@ -2812,22 +2755,6 @@ export default function AdminPanel({
                           ]
                         };
                         setLocalXpact([...localXpact, newRow]);
-
-                        // Ensure category exists in Bureau too but with empty details
-                        const bureauIndex = localBureau.findIndex(
-                          b => b.category.trim().toLowerCase() === trimmedCat.toLowerCase()
-                        );
-                        if (bureauIndex === -1) {
-                          const newBureauRow: BureauAllocation = {
-                            id: "bureau-" + Date.now() + Math.random().toString(36).substr(2, 4),
-                            category: trimmedCat,
-                            qty: 0,
-                            last_updated: "",
-                            ref_no: "",
-                            additions: []
-                          };
-                          setLocalBureau([...localBureau, newBureauRow]);
-                        }
 
                         setNewXpactCategory("");
                         setNewXpactQty("");
