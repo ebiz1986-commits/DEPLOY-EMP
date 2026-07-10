@@ -36,6 +36,9 @@ export interface Worker {
   bureau_date?: string;
   final_status_date?: string;
   gate_reject_reason?: string;
+  admin2_submit_date?: string;
+  admin2_reject_date?: string;
+  admin2_resubmit_date?: string;
 }
 
 export interface Category {

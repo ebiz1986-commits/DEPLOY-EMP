@@ -487,6 +487,7 @@ async function startServer() {
       bureau_date: initDateStr,
       final_status_date: initDateStr,
       gate_reject_reason: "",
+      admin2_submit_date: initDateStr,
       nationality: (w as any).nationality || ""
     }));
 

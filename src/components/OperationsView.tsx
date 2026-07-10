@@ -68,6 +68,10 @@ export default function OperationsView({
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   
+  // Rejection entry state for Admin 2 (Ops)
+  const [activeRejectId, setActiveRejectId] = useState<string | null>(null);
+  const [rejectReasonText, setRejectReasonText] = useState<string>("");
+  
   // Feed alerts/toasts
   const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
@@ -691,36 +695,171 @@ export default function OperationsView({
 
                     {/* WhatsApp Doc Checked checkbox list toggle */}
                     <td className="p-3">
-                      <div className="flex flex-col gap-1.5 min-w-[145px]">
-                        <div className="flex items-center gap-1.5 w-full">
-                          <select
-                            value={docValue}
-                            onChange={(e) => handleFieldChange(w.id, "doc_upload_wa", e.target.value)}
-                            disabled={isDocUploadLocked}
-                            className={`text-[11px] px-2.5 py-1 font-mono rounded border outline-none w-full ${
-                              isDocUploadLocked 
-                                ? "bg-stone-100 text-stone-400 border-stone-200 cursor-not-allowed" 
-                                : "cursor-pointer"
-                            } ${
-                              docValue === "Yes" 
-                                ? "bg-success-green/10 text-success-green border-success-green/40 font-semibold" 
-                                : docValue === "Rejected"
-                                ? "bg-red-50 text-bad border-bad/40 font-semibold"
-                                : "bg-amber-50 text-amber-700 border-amber-300 font-semibold"
-                            }`}
-                          >
-                            <option value="Pending">Pending</option>
-                            <option value="Yes">Yes</option>
-                            <option value="Rejected">Rejected</option>
-                          </select>
-                          {isDocUploadLocked && (
-                            <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" title="Locked: Only system admin can modify after change applied" />
+                      <div className="flex flex-col gap-1.5 min-w-[155px]">
+                        
+                        {isDocUploadLocked ? (
+                          <div className="flex flex-col gap-1">
+                            {docValue === "Yes" ? (
+                              <div className="inline-flex items-center gap-1 text-[11px] font-bold text-success-green bg-success-green/10 border border-success-green/20 px-2 py-1 rounded w-full justify-center">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-success-green" />
+                                <span>Verified ✓</span>
+                              </div>
+                            ) : docValue === "Rejected" ? (
+                              <div className="inline-flex items-center gap-1 text-[11px] font-bold text-[#A30000] bg-red-50 border border-red-250 px-2 py-1 rounded w-full justify-center">
+                                <AlertTriangle className="w-3.5 h-3.5 text-[#A30000]" />
+                                <span>Rejected ✗</span>
+                              </div>
+                            ) : (
+                              <div className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded w-full justify-center">
+                                <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                                <span>Pending ⏳</span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          activeRejectId === w.id ? (
+                            <div className="flex flex-col gap-1.5 w-full bg-red-50/50 p-2 rounded-lg border border-red-200/60 animate-fade-in">
+                              <span className="text-[8.5px] uppercase font-bold text-red-850 font-mono">Reject Reason:</span>
+                              <input
+                                type="text"
+                                value={rejectReasonText}
+                                onChange={(e) => setRejectReasonText(e.target.value)}
+                                placeholder="Enter reason (e.g. wrong photo)..."
+                                className="text-[10px] w-full px-2 py-1 bg-white border border-red-200 focus:border-red-500 rounded shadow-xs outline-none font-sans text-ink"
+                                autoFocus
+                                onKeyDown={async (e) => {
+                                  if (e.key === "Enter") {
+                                    const today = new Date().toISOString().split("T")[0];
+                                    await onUpdateWorker(w.id, {
+                                      doc_upload_wa: "Rejected",
+                                      wa_doc_reject_reason: rejectReasonText.trim() || "Wrong passport scan",
+                                      admin2_reject_date: today
+                                    });
+                                    setActiveRejectId(null);
+                                    setRejectReasonText("");
+                                    onRefresh();
+                                  } else if (e.key === "Escape") {
+                                    setActiveRejectId(null);
+                                    setRejectReasonText("");
+                                  }
+                                }}
+                              />
+                              <div className="flex items-center gap-1 justify-end">
+                                <button
+                                  onClick={() => {
+                                    setActiveRejectId(null);
+                                    setRejectReasonText("");
+                                  }}
+                                  className="px-1.5 py-0.5 text-[8.5px] font-semibold text-stone-600 hover:text-stone-900 bg-white border border-stone-200 rounded leading-none cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    const today = new Date().toISOString().split("T")[0];
+                                    await onUpdateWorker(w.id, {
+                                      doc_upload_wa: "Rejected",
+                                      wa_doc_reject_reason: rejectReasonText.trim() || "Wrong passport scan",
+                                      admin2_reject_date: today
+                                    });
+                                    setActiveRejectId(null);
+                                    setRejectReasonText("");
+                                    onRefresh();
+                                  }}
+                                  className="px-2 py-0.5 text-[8.5px] font-bold text-white bg-red-650 hover:bg-red-750 rounded leading-none cursor-pointer"
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-1.5 w-full">
+                              {docValue === "Yes" ? (
+                                <div className="flex items-center justify-between gap-1 w-full p-1 bg-success-green/5 border border-success-green/20 rounded">
+                                  <span className="text-[10px] font-bold text-success-green pl-1">Verified ✓</span>
+                                  <button
+                                    onClick={() => {
+                                      setActiveRejectId(w.id);
+                                      setRejectReasonText(w.wa_doc_reject_reason || "");
+                                    }}
+                                    className="px-1.5 py-0.5 bg-red-100 text-[#A30000] hover:bg-red-200 rounded text-[9px] font-bold cursor-pointer transition-colors"
+                                    title="Reject and specify reason"
+                                  >
+                                    Reject
+                                  </button>
+                                </div>
+                              ) : docValue === "Rejected" ? (
+                                <div className="flex items-center justify-between gap-1 w-full p-1 bg-red-50 border border-red-100 rounded">
+                                  <span className="text-[10px] font-bold text-[#A30000] pl-1">Rejected ✗</span>
+                                  <button
+                                    onClick={async () => {
+                                      const today = new Date().toISOString().split("T")[0];
+                                      await onUpdateWorker(w.id, {
+                                        doc_upload_wa: "Yes",
+                                        admin2_submit_date: w.admin2_submit_date || today,
+                                        wa_doc_reject_reason: ""
+                                      });
+                                      onRefresh();
+                                    }}
+                                    className="px-1.5 py-0.5 bg-success-green/10 text-success-green hover:bg-success-green/20 rounded text-[9px] font-bold cursor-pointer transition-colors"
+                                    title="Approve and Submit"
+                                  >
+                                    Submit
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex gap-1.5 w-full">
+                                  <button
+                                    onClick={async () => {
+                                      const today = new Date().toISOString().split("T")[0];
+                                      await onUpdateWorker(w.id, {
+                                        doc_upload_wa: "Yes",
+                                        admin2_submit_date: w.admin2_submit_date || today,
+                                        wa_doc_reject_reason: ""
+                                      });
+                                      onRefresh();
+                                    }}
+                                    className="flex-1 py-1 px-1.5 bg-success-green text-white hover:bg-success-green/90 rounded text-[10px] font-bold cursor-pointer shadow-2xs transition-all flex items-center justify-center gap-0.5"
+                                    title="Approve and submit candidate document verification"
+                                  >
+                                    Submit
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setActiveRejectId(w.id);
+                                      setRejectReasonText(w.wa_doc_reject_reason || "");
+                                    }}
+                                    className="flex-1 py-1 px-1.5 bg-red-600 text-white hover:bg-red-750 rounded text-[10px] font-bold cursor-pointer shadow-2xs transition-all flex items-center justify-center gap-0.5"
+                                    title="Reject document with specified reason"
+                                  >
+                                    Reject
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        )}
+
+                        {/* Display tracked dates with precise labels */}
+                        <div className="text-[8.5px] font-mono text-[#8a8175] flex flex-col gap-0.5 mt-1 border-t border-line/25 pt-1 select-none">
+                          <div className="flex justify-between" title="Submit Date">
+                            <span>Sub Date:</span>
+                            <span className="font-semibold text-stone-600">{w.admin2_submit_date || (w.created_at ? w.created_at.split("T")[0] : "—")}</span>
+                          </div>
+                          {w.admin2_reject_date && docValue === "Rejected" && (
+                            <div className="flex justify-between" title="Reject Date">
+                              <span className="text-[#A30000]">Rej Date:</span>
+                              <span className="font-semibold text-[#A30000]">{w.admin2_reject_date}</span>
+                            </div>
+                          )}
+                          {w.admin2_resubmit_date && (
+                            <div className="flex justify-between" title="Resubmit Date">
+                              <span className="text-indigo-600">Resub Date:</span>
+                              <span className="font-semibold text-indigo-600">{w.admin2_resubmit_date}</span>
+                            </div>
                           )}
                         </div>
-                        <span className="block text-[9px] text-[#8a8175] font-mono pl-1" title="WA Doc Change Date">
-                          Date: {w.doc_upload_wa_date || w.last_updated || (w.created_at ? w.created_at.split("T")[0] : "—")}
-                        </span>
-                        
+
                         {/* Display days waiting or took to upload */}
                         {(() => {
                           const isCompleted = docValue === "Yes";
@@ -729,42 +868,31 @@ export default function OperationsView({
                           if (days === null) return null;
                           if (isCompleted) {
                             return (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-mono text-success-green bg-success-green/10 border border-success-green/20 px-1.5 py-0.5 rounded w-fit pl-1" title="Completed upload duration since record creation">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-success-green shrink-0" />
+                              <span className="inline-flex items-center gap-1 text-[9px] font-mono text-success-green bg-success-green/10 border border-success-green/10 px-1 py-0.5 rounded w-fit" title="Completed upload duration since record creation">
+                                <CheckCircle2 className="w-3 h-3 text-success-green shrink-0" />
                                 <span>Uploaded in {days} d</span>
                               </span>
                             );
                           }
                           return (
-                            <span className={`inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded w-fit pl-1 ${
+                            <span className={`inline-flex items-center gap-1 text-[9px] font-mono px-1 py-0.5 rounded w-fit ${
                               docValue === "Rejected"
-                                ? "text-bad bg-red-50 border border-bad/20"
+                                ? "text-bad bg-red-50 border border-bad/10"
                                 : "text-amber-700 bg-amber-50 border border-amber-100"
-                            }`} title="Number of days queueing since Candidate record created by recruiting agency">
-                              <Clock className="w-3 h-3 animate-pulse shrink-0" />
+                            }`} title="Number of days queueing since Candidate record created">
+                              <Clock className="w-2.5 h-2.5 animate-pulse shrink-0" />
                               <span>Waiting: {days} {days === 1 ? "day" : "days"}</span>
                             </span>
                           );
                         })()}
-
-                        {(docValue === "Rejected" || w.doc_upload_wa === "No") && (
-                          <div className="w-full flex flex-col gap-0.5">
-                            <span className="text-[8px] uppercase tracking-wider font-semibold text-bad font-mono">Reject Reason:</span>
-                            <input
-                              type="text"
-                              placeholder="Enter rejection reason..."
-                              defaultValue={w.wa_doc_reject_reason || ""}
-                              onBlur={(e) => handleFieldChange(w.id, "wa_doc_reject_reason", e.target.value.trim())}
-                              onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    handleFieldChange(w.id, "wa_doc_reject_reason", (e.target as HTMLInputElement).value.trim());
-                                    (e.target as HTMLInputElement).blur();
-                                  }
-                              }}
-                              disabled={isDocUploadLocked}
-                              className="text-[10px] w-full px-2 py-1 bg-stone-50 border border-stone-200 focus:border-bad/65 rounded shadow-sm outline-none font-sans"
-                              title="Press Enter or update focus to save rejection details"
-                            />
+                        
+                        {/* Display reject reason if rejected and not in active editing mode */}
+                        {docValue === "Rejected" && activeRejectId !== w.id && w.wa_doc_reject_reason && (
+                          <div className="w-full flex flex-col gap-0.5 mt-1 border-t border-red-100/40 pt-1">
+                            <span className="text-[8.5px] uppercase tracking-wider font-semibold text-bad font-mono">Reason:</span>
+                            <div className="text-[9.5px] text-red-700 bg-red-50/50 p-1 rounded font-sans break-words border border-red-100/30">
+                              {w.wa_doc_reject_reason}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -941,6 +1069,35 @@ export default function OperationsView({
           Warning: No active project focused. Please select a project context in the sidebar or dashboard.
         </div>
       )}
+
+      {/* Live Operations Status Bar */}
+      {(() => {
+        const totalActive = activeWorkers.length;
+        const docVerified = activeWorkers.filter(w => w.doc_upload_wa === "Yes").length;
+        const docPending = activeWorkers.filter(w => w.doc_upload_wa !== "Yes" && w.doc_upload_wa !== "Rejected").length;
+        const docRejected = activeWorkers.filter(w => w.doc_upload_wa === "Rejected").length;
+        const arrivedCount = activeWorkers.filter(w => w.final_status === "Arrived").length;
+
+        return (
+          <div className="bg-card border border-line rounded-xl p-3 shadow-sm flex flex-wrap items-center gap-2.5 text-[10px] font-mono select-none">
+            <span className="px-2.5 py-1 bg-stone-100 border border-line rounded-md text-ink">
+              Roster Count: <strong className="font-semibold text-accent">{totalActive}</strong>
+            </span>
+            <span className="px-2.5 py-1 bg-green-50 text-success-green border border-success-green/20 rounded-md">
+              Doc Verified: <strong className="font-bold">{docVerified}</strong>
+            </span>
+            <span className="px-2.5 py-1 bg-amber-500/10 border border-gold/30 text-gold-900 rounded-md animate-pulse">
+              Doc Pending: <strong className="font-bold">{docPending}</strong>
+            </span>
+            <span className="px-2.5 py-1 bg-red-50 text-bad border border-bad/20 rounded-md">
+              Doc Rejected: <strong className="font-bold">{docRejected}</strong>
+            </span>
+            <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md">
+              Arrived: <strong className="font-bold">{arrivedCount}</strong>
+            </span>
+          </div>
+        );
+      })()}
 
       {/* Floating Dynamic Feedback Toast */}
       {toastMessage && (

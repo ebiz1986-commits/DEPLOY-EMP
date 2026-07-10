@@ -537,7 +537,8 @@ export default function RecruiterIntakeView({
     const arrived = recruiterWorkers.filter(w => w.final_status === "Arrived").length;
     const engineerHeld = recruiterWorkers.filter(w => w.state === "held").length;
     const engineerRejected = recruiterWorkers.filter(w => w.state === "rejected").length;
-    return { total, pending, visaApproved, visaRejected, arrived, engineerHeld, engineerRejected };
+    const adminRejected = recruiterWorkers.filter(w => w.doc_upload_wa === "Rejected").length;
+    return { total, pending, visaApproved, visaRejected, arrived, engineerHeld, engineerRejected, adminRejected };
   }, [recruiterWorkers]);
 
   // Filter list of workers for the Combined Master Records Archive in Intake portal
@@ -1628,6 +1629,11 @@ export default function RecruiterIntakeView({
                 ❌ Eng Rejected: <strong>{feedStats.engineerRejected}</strong>
               </span>
             )}
+            {feedStats.adminRejected > 0 && (
+              <span className="px-2.5 py-1 bg-rose-100 text-rose-950 border border-rose-300 rounded-md font-bold animate-pulse flex items-center gap-1">
+                ❌ Admin Rejected: <strong>{feedStats.adminRejected}</strong>
+              </span>
+            )}
           </div>
         </div>
 
@@ -1842,6 +1848,52 @@ export default function RecruiterIntakeView({
                               <span className="text-[9px] text-amber-850 font-mono block mt-0.5">
                                 Awaiting approval clearance
                               </span>
+                            </div>
+                          )}
+                          {w.doc_upload_wa === "Rejected" && (
+                            <div className="mt-1 bg-rose-50 border border-rose-200 rounded-md p-2.5 max-w-[280px] shadow-sm">
+                              <span className="text-[10.5px] font-bold text-rose-800 font-sans flex items-center gap-1">
+                                ❌ Rejected by Admin 2 (Ops)
+                              </span>
+                              {w.wa_doc_reject_reason && (
+                                <p className="text-[10px] text-rose-700 bg-white border border-rose-100 rounded px-1.5 py-1 font-mono block mt-1 mb-1.5 break-words">
+                                  <strong>Reason:</strong> {w.wa_doc_reject_reason}
+                                </p>
+                              )}
+                              <div className="text-[9px] text-slate-500 font-mono space-y-0.5 mt-1.5">
+                                <div className="flex justify-between">
+                                  <span>Submit Date:</span>
+                                  <span className="font-bold text-slate-700">{w.admin2_submit_date || (w.created_at ? w.created_at.split("T")[0] : "—")}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Rejected Date:</span>
+                                  <span className="font-bold text-slate-700">{w.admin2_reject_date || w.doc_upload_wa_date || "—"}</span>
+                                </div>
+                                {w.admin2_resubmit_date && (
+                                  <div className="flex justify-between">
+                                    <span>Resubmit Date:</span>
+                                    <span className="font-bold text-slate-700">{w.admin2_resubmit_date}</span>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-rose-200/40">
+                                <button
+                                  onClick={async (e) => {
+                                    e.preventDefault();
+                                    if (confirm(`Are you sure you want to resubmit candidate "${w.name}" to Admin 2 for review?`)) {
+                                      await onUpdateWorker(w.id, {
+                                        doc_upload_wa: "Pending",
+                                        admin2_resubmit_date: new Date().toISOString().split("T")[0]
+                                      });
+                                      onRefresh();
+                                    }
+                                  }}
+                                  className="flex items-center gap-1 px-2 py-1 text-[9.5px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded border border-indigo-500/20 transition-all cursor-pointer shadow-2xs"
+                                  title="Resubmit worker to Admin 2"
+                                >
+                                  🔄 Resubmit
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
