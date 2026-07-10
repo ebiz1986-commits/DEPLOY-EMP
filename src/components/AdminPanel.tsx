@@ -23,7 +23,9 @@ import {
   BarChart2,
   Cloud,
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  Eye,
+  Search
 } from "lucide-react";
 import { User as FirebaseUser } from "firebase/auth";
 import {
@@ -95,9 +97,15 @@ export default function AdminPanel({
 }: AdminPanelProps) {
   
   // Navigation internal to Admin Settings panel
-  const [activeSubTab, setActiveSubTab] = useState<"project" | "quotas" | "companies" | "dropdowns" | "users" | "gdrive" | "bureau_xpact">("project");
+  const [activeSubTab, setActiveSubTab] = useState<"project" | "quotas" | "companies" | "dropdowns" | "users" | "gdrive" | "bureau_xpact" | "worker_audit">("project");
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Audit trail list and filter states
+  const [auditSearch, setAuditSearch] = useState("");
+  const [auditCompany, setAuditCompany] = useState("All");
+  const [auditStateFilter, setAuditStateFilter] = useState("All");
+  const [selectedAuditWorker, setSelectedAuditWorker] = useState<Worker | null>(null);
 
   const [localBureau, setLocalBureau] = useState<BureauAllocation[]>([]);
   const [localXpact, setLocalXpact] = useState<XpactAllocation[]>([]);
@@ -741,6 +749,18 @@ export default function AdminPanel({
         >
           <Sliders className="w-3.5 h-3.5 inline mr-1.5" />
           BUREAU & XPAT ALLOCATION
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab("worker_audit")}
+          className={`px-4 py-2.5 text-[11px] font-sans uppercase tracking-widest border-b-2 font-bold whitespace-nowrap cursor-pointer transition-colors ${
+            activeSubTab === "worker_audit"
+              ? "border-accent text-accent"
+              : "border-transparent text-muted hover:text-ink"
+          }`}
+        >
+          <Users2 className="w-3.5 h-3.5 inline mr-1.5" />
+          WORKER AUDITS
         </button>
 
       </div>
@@ -2912,6 +2932,537 @@ export default function AdminPanel({
 
           </div>
         )}
+
+        {/* SUB 7: WORKER AUDIT TRAIL */}
+        {activeSubTab === "worker_audit" && (() => {
+          // Helper: Parse Date Safely
+          const parseToDate = (dateStr?: string) => {
+            if (!dateStr) return new Date(0);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+              return new Date(`${dateStr}T00:00:00`);
+            }
+            return new Date(dateStr);
+          };
+
+          // Helper: Format Date Safely
+          const formatAuditDate = (dateStr?: string) => {
+            if (!dateStr) return "—";
+            try {
+              const d = parseToDate(dateStr);
+              if (d.getTime() === 0) return "—";
+              if (dateStr.includes("T") && dateStr.includes(":")) {
+                return d.toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                });
+              }
+              return d.toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric"
+              });
+            } catch (e) {
+              return dateStr;
+            }
+          };
+
+          // Event type definition
+          interface AuditEvent {
+            title: string;
+            date: string;
+            status: "success" | "danger" | "warning" | "info" | "neutral";
+            description: string;
+            reason?: string;
+            actor: string;
+            icon: "UserPlus" | "UploadCloud" | "CheckCircle2" | "XCircle" | "RefreshCw" | "LockOpen" | "AlertTriangle" | "FileText" | "Hourglass" | "BadgeCheck" | "Plane";
+          }
+
+          // Helper: Build Chronological Audit Trail
+          const getWorkerAuditTrail = (w: Worker): AuditEvent[] => {
+            const events: AuditEvent[] = [];
+
+            // 1. Profile Creation
+            if (w.created_at) {
+              events.push({
+                title: "Candidate Profile Registered",
+                date: w.created_at,
+                status: "info",
+                description: `Worker candidate profile created under job category "${w.category}" by recruiting agency.`,
+                actor: w.supply_company,
+                icon: "UserPlus"
+              });
+            }
+
+            // 2. Admin 2 / Ops Submission & Verification
+            if (w.admin2_submit_date) {
+              events.push({
+                title: "Documents Submitted to Admin 2",
+                date: w.admin2_submit_date,
+                status: "neutral",
+                description: "Documents and WhatsApp uploads submitted for verification.",
+                actor: w.supply_company,
+                icon: "UploadCloud"
+              });
+            }
+
+            if (w.doc_upload_wa === "Yes" && w.doc_upload_wa_date) {
+              events.push({
+                title: "Ops Document Verification Approved",
+                date: w.doc_upload_wa_date || w.admin2_submit_date,
+                status: "success",
+                description: "Admin 2 verified all candidate credentials and passport scans successfully.",
+                actor: "Operations Admin",
+                icon: "CheckCircle2"
+              });
+            }
+
+            // 3. Admin 2 / Ops Rejection
+            if (w.doc_upload_wa === "Rejected" || w.admin2_reject_date) {
+              events.push({
+                title: "Ops Document Verification Rejected",
+                date: w.admin2_reject_date || w.doc_upload_wa_date || w.last_updated,
+                status: "danger",
+                description: "Admin 2 rejected candidate's document uploads.",
+                reason: w.wa_doc_reject_reason || "Documents failed validation checks.",
+                actor: "Operations Admin",
+                icon: "XCircle"
+              });
+            }
+
+            // 4. Recruiter Resubmission
+            if (w.admin2_resubmit_date) {
+              events.push({
+                title: "Documents Resubmitted by Recruiter",
+                date: w.admin2_resubmit_date,
+                status: "warning",
+                description: "Recruiter resubmitted updated details and files for verification.",
+                actor: w.supply_company,
+                icon: "RefreshCw"
+              });
+            }
+
+            // 5. Site Engineer Approvals
+            if (w.state === "active" && (w.visa_doc_date || w.last_updated)) {
+              events.push({
+                title: "Engineer Gate Approval",
+                date: w.visa_doc_date || w.last_updated,
+                status: "success",
+                description: `Approved by Ir. Tan. Candidate state activated. Assigned sending batch: ${w.sending_batch || "Not assigned"}.`,
+                actor: "Site Engineer",
+                icon: "LockOpen"
+              });
+            } else if (w.state === "rejected" && w.last_updated) {
+              events.push({
+                title: "Engineer Gate Rejection",
+                date: w.last_updated,
+                status: "danger",
+                description: "Candidate rejected at the site engineering gate review.",
+                reason: w.gate_reject_reason || "Qualifications/documents did not meet project requirements.",
+                actor: "Site Engineer",
+                icon: "XCircle"
+              });
+            } else if (w.state === "held" && w.last_updated) {
+              events.push({
+                title: "Candidate Placed on Hold",
+                date: w.last_updated,
+                status: "warning",
+                description: "Engineer placed candidate review process on Hold.",
+                actor: "Site Engineer",
+                icon: "AlertTriangle"
+              });
+            }
+
+            // 6. Visa Status Updates
+            if (w.status && w.status !== "Pending") {
+              const isApproved = w.status.toLowerCase().includes("approved");
+              const isReject = w.status.toLowerCase().includes("reject") || w.status.toLowerCase().includes("fail");
+              events.push({
+                title: `Visa Status: ${w.status}`,
+                date: w.status_date || w.last_updated,
+                status: isApproved ? "success" : isReject ? "danger" : "info",
+                description: `Visa processing stage updated to "${w.status}".`,
+                actor: "Operations Admin",
+                icon: "FileText"
+              });
+            }
+
+            // 7. Bureau Clearance
+            if (w.bureau_pending_at) {
+              events.push({
+                title: "Entered Bureau Clearance Queue",
+                date: w.bureau_pending_at,
+                status: "info",
+                description: "Bureau clearance processing initiated automatically.",
+                actor: "System Pipeline",
+                icon: "Hourglass"
+              });
+            }
+
+            if (w.bureau === "Complete") {
+              events.push({
+                title: "Bureau Clearance Completed",
+                date: w.bureau_completed_at || w.bureau_date || w.last_updated,
+                status: "success",
+                description: "Bureau security clearance check passed successfully.",
+                actor: "Operations Admin",
+                icon: "BadgeCheck"
+              });
+            } else if (w.bureau === "Reject") {
+              events.push({
+                title: "Bureau Clearance Rejected",
+                date: w.bureau_date || w.last_updated,
+                status: "danger",
+                description: "Bureau clearance failed or was rejected.",
+                actor: "Operations Admin",
+                icon: "XCircle"
+              });
+            }
+
+            // 8. Final Placement Status
+            if (w.final_status && w.final_status !== "Pending") {
+              const isArrived = w.final_status === "Arrived";
+              const isBooked = w.final_status === "Booked";
+              events.push({
+                title: `Final Placement: ${w.final_status}`,
+                date: w.final_status_date || w.last_updated,
+                status: isArrived ? "success" : isBooked ? "info" : "warning",
+                description: `Final mobilization status updated to "${w.final_status}".`,
+                actor: "Operations Admin",
+                icon: "Plane"
+              });
+            }
+
+            // Sort chronologically
+            return events.sort((a, b) => parseToDate(a.date).getTime() - parseToDate(b.date).getTime());
+          };
+
+          // Filter workers based on states
+          const filteredWorkers = workers.filter((w) => {
+            const matchesSearch = 
+              !auditSearch.trim() ||
+              w.name.toLowerCase().includes(auditSearch.toLowerCase()) ||
+              w.passport.toLowerCase().includes(auditSearch.toLowerCase()) ||
+              w.category.toLowerCase().includes(auditSearch.toLowerCase()) ||
+              (w.sending_batch && w.sending_batch.toLowerCase().includes(auditSearch.toLowerCase()));
+
+            const matchesCompany = auditCompany === "All" || w.supply_company === auditCompany;
+            const matchesState = auditStateFilter === "All" || w.state === auditStateFilter;
+
+            return matchesSearch && matchesCompany && matchesState;
+          });
+
+          return (
+            <div className="space-y-6 animate-fade-in font-sans">
+              
+              {/* Header / Filter bar */}
+              <div className="bg-card border border-line rounded-xl p-5 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-line/50">
+                  <div>
+                    <h3 className="text-sm font-semibold text-ink font-display flex items-center gap-1.5">
+                      <Users2 className="w-4 h-4 text-accent" />
+                      Worker Lifecycle Audits & Records
+                    </h3>
+                    <p className="text-xs text-muted">
+                      Audit all candidate transitions, rejections, submissions, and resubmissions across the pipeline.
+                    </p>
+                  </div>
+                  <span className="text-[10px] text-muted font-mono bg-paper border border-line/60 px-2.5 py-1 rounded-md">
+                    Total Workers: <strong className="font-semibold text-accent">{workers.length}</strong>
+                  </span>
+                </div>
+
+                {/* Filters grid */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                  {/* Search Bar */}
+                  <div className="md:col-span-6 relative">
+                    <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-stone-400">
+                      <Search className="w-4 h-4" />
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Search worker by name, passport, category, batch..."
+                      value={auditSearch}
+                      onChange={(e) => setAuditSearch(e.target.value)}
+                      className="w-full bg-paper/25 border border-line focus:border-accent rounded-lg pl-9 pr-4 py-2 text-xs outline-none text-ink font-sans transition-all"
+                    />
+                  </div>
+
+                  {/* Company Select */}
+                  <div className="md:col-span-3">
+                    <select
+                      value={auditCompany}
+                      onChange={(e) => setAuditCompany(e.target.value)}
+                      className="w-full bg-paper/25 border border-line focus:border-accent rounded-lg px-3 py-2 text-xs outline-none text-ink font-sans transition-all cursor-pointer"
+                    >
+                      <option value="All">All Supply Companies</option>
+                      {companies.map((co) => (
+                        <option key={co.id} value={co.name}>
+                          {co.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* State Select */}
+                  <div className="md:col-span-3">
+                    <select
+                      value={auditStateFilter}
+                      onChange={(e) => setAuditStateFilter(e.target.value)}
+                      className="w-full bg-paper/25 border border-line focus:border-accent rounded-lg px-3 py-2 text-xs outline-none text-ink font-sans transition-all cursor-pointer"
+                    >
+                      <option value="All">All Lifecycle States</option>
+                      <option value="pending">Pending</option>
+                      <option value="active">Active (Approved)</option>
+                      <option value="rejected">Rejected Gate</option>
+                      <option value="held">On Hold</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Workers table results */}
+              <div className="bg-card border border-line rounded-xl shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs bg-card border-collapse">
+                    <thead className="bg-paper text-muted font-mono text-[9px] uppercase tracking-wider border-b border-line">
+                      <tr>
+                        <th className="p-3.5 pl-5">Worker Name</th>
+                        <th className="p-3.5">Passport</th>
+                        <th className="p-3.5">Supply Agency</th>
+                        <th className="p-3.5">Job Category</th>
+                        <th className="p-3.5">State Status</th>
+                        <th className="p-3.5 text-center">Admin 2 WA</th>
+                        <th className="p-3.5 text-right pr-6 w-36">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-line/45">
+                      {filteredWorkers.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-12 text-center text-muted text-xs italic">
+                            No matching workers found for the current search and filter settings.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredWorkers.map((w) => {
+                          const trail = getWorkerAuditTrail(w);
+                          return (
+                            <tr key={w.id} className="hover:bg-paper/10 transition-colors">
+                              <td className="p-3.5 pl-5 font-semibold text-stone-900 font-sans">
+                                {w.name}
+                              </td>
+                              <td className="p-3.5 font-mono font-medium text-stone-600">
+                                {w.passport}
+                              </td>
+                              <td className="p-3.5 text-stone-600 font-sans">
+                                {w.supply_company}
+                              </td>
+                              <td className="p-3.5 text-stone-600 font-sans">
+                                {w.category}
+                              </td>
+                              <td className="p-3.5">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                                  w.state === "active" 
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                                    : w.state === "rejected"
+                                    ? "bg-red-50 text-[#A30000] border-red-200"
+                                    : w.state === "held"
+                                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                                    : "bg-stone-50 text-stone-600 border-stone-200"
+                                }`}>
+                                  {w.state.toUpperCase()}
+                                </span>
+                              </td>
+                              <td className="p-3.5 text-center">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-semibold ${
+                                  w.doc_upload_wa === "Yes" 
+                                    ? "bg-green-50 text-success-green border border-success-green/20" 
+                                    : w.doc_upload_wa === "Rejected"
+                                    ? "bg-red-50 text-[#A30000] border border-red-200"
+                                    : "bg-amber-50 text-amber-700 border border-amber-200 animate-pulse"
+                                }`}>
+                                  {w.doc_upload_wa}
+                                </span>
+                              </td>
+                              <td className="p-3.5 text-right pr-6 whitespace-nowrap">
+                                <button
+                                  onClick={() => setSelectedAuditWorker(w)}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-stone-950 hover:bg-stone-800 text-white rounded text-[11px] font-semibold cursor-pointer shadow-2xs hover:shadow-xs transition-all"
+                                >
+                                  <Eye className="w-3 h-3" />
+                                  <span>Audit Trail</span>
+                                  {trail.length > 0 && (
+                                    <span className="ml-0.5 px-1 bg-white/20 text-white rounded text-[9px] font-bold">
+                                      {trail.length}
+                                    </span>
+                                  )}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Dynamic Overlay Side Panel for Worker Trail */}
+              {selectedAuditWorker && (() => {
+                const trail = getWorkerAuditTrail(selectedAuditWorker);
+                return (
+                  <div className="fixed inset-0 z-50 flex justify-end bg-stone-900/35 backdrop-blur-xs animate-fade-in font-sans">
+                    {/* Background veil click handler */}
+                    <div className="absolute inset-0" onClick={() => setSelectedAuditWorker(null)} />
+                    
+                    {/* Drawer container */}
+                    <div className="relative w-full max-w-lg bg-[#FAF9F5] border-l border-line h-full shadow-2xl flex flex-col animate-slide-in overflow-hidden">
+                      {/* Drawer Header */}
+                      <div className="p-5 border-b border-line bg-white flex items-center justify-between select-none">
+                        <div>
+                          <span className="text-[9px] uppercase tracking-wider font-bold text-accent font-mono bg-accent/10 px-2 py-0.5 rounded-md">Candidate Lifecycle Audit Trail</span>
+                          <h3 className="text-base font-semibold text-stone-900 font-display mt-1">
+                            {selectedAuditWorker.name}
+                          </h3>
+                          <p className="text-xs text-stone-500 font-mono mt-0.5">
+                            Passport: <span className="text-stone-700 font-bold">{selectedAuditWorker.passport}</span> | Category: <span className="text-stone-700 font-bold">{selectedAuditWorker.category}</span>
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setSelectedAuditWorker(null)}
+                          className="p-1.5 hover:bg-stone-100 rounded-lg text-stone-400 hover:text-stone-700 transition-colors cursor-pointer"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+
+                      {/* Scrollable Timeline */}
+                      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                        
+                        {/* Status Summary Card */}
+                        <div className="bg-white border border-stone-250/70 rounded-xl p-4 shadow-2xs space-y-2.5">
+                          <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider font-mono">Current Lifecycle Status</h4>
+                          <div className="grid grid-cols-2 gap-3.5 text-xs">
+                            <div>
+                              <span className="text-stone-400 block text-[9px] font-mono font-bold">INTAKE AGENCY:</span>
+                              <span className="font-semibold text-stone-800">{selectedAuditWorker.supply_company}</span>
+                            </div>
+                            <div>
+                              <span className="text-stone-400 block text-[9px] font-mono font-bold">BATCH NUMBER:</span>
+                              <span className="font-semibold text-stone-800 font-mono">{selectedAuditWorker.sending_batch || "—"}</span>
+                            </div>
+                            <div>
+                              <span className="text-stone-400 block text-[9px] font-mono font-bold">DOCUMENT STATUS:</span>
+                              <span className={`font-bold inline-flex items-center gap-1 ${
+                                selectedAuditWorker.doc_upload_wa === "Yes" ? "text-success-green" : 
+                                selectedAuditWorker.doc_upload_wa === "Rejected" ? "text-[#A30000]" : "text-amber-600 animate-pulse"
+                              }`}>
+                                {selectedAuditWorker.doc_upload_wa === "Yes" ? "✓ Verified" : 
+                                 selectedAuditWorker.doc_upload_wa === "Rejected" ? "✗ Rejected" : "⏳ Pending"}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-stone-400 block text-[9px] font-mono font-bold">ENGINEER GATEWAY:</span>
+                              <span className={`font-bold ${
+                                selectedAuditWorker.state === "active" ? "text-success-green" : 
+                                selectedAuditWorker.state === "rejected" ? "text-[#A30000]" : 
+                                selectedAuditWorker.state === "held" ? "text-amber-500" : "text-stone-500"
+                              }`}>
+                                {selectedAuditWorker.state === "active" ? "✓ Approved" : 
+                                 selectedAuditWorker.state === "rejected" ? "✗ Rejected" : 
+                                 selectedAuditWorker.state === "held" ? "⏳ Held" : "Pending Queue"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Audit Trail List */}
+                        <div className="space-y-4">
+                          <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider font-mono">Chronological History ({trail.length} transitions)</h4>
+                          
+                          <div className="relative pl-6 border-l-2 border-stone-200/80 space-y-6 ml-3 mt-4">
+                            {trail.map((event, index) => {
+                              // Dynamically mapped icons
+                              let iconBgClass = "bg-stone-50 text-stone-500 border-stone-200";
+                              let titleColorClass = "text-stone-800";
+                              
+                              if (event.status === "success") {
+                                iconBgClass = "bg-green-50 text-success-green border-green-200";
+                              } else if (event.status === "danger") {
+                                iconBgClass = "bg-red-50 text-[#A30000] border-red-200";
+                                titleColorClass = "text-[#A30000]";
+                              } else if (event.status === "warning") {
+                                iconBgClass = "bg-amber-50 text-amber-600 border-amber-200";
+                              } else if (event.status === "info") {
+                                iconBgClass = "bg-blue-50 text-blue-600 border-blue-200";
+                              }
+
+                              return (
+                                <div key={index} className="relative animate-fade-in text-left">
+                                  {/* Node indicator */}
+                                  <span className={`absolute -left-[37px] top-0.5 w-7 h-7 rounded-full border flex items-center justify-center shadow-2xs ${iconBgClass}`}>
+                                    {event.icon === "UserPlus" && <UserPlus className="w-3.5 h-3.5" />}
+                                    {event.icon === "UploadCloud" && <Cloud className="w-3.5 h-3.5" />}
+                                    {event.icon === "CheckCircle2" && <CheckCircle className="w-3.5 h-3.5" />}
+                                    {event.icon === "XCircle" && <X className="w-3.5 h-3.5" />}
+                                    {event.icon === "RefreshCw" && <RefreshCw className="w-3.5 h-3.5" />}
+                                    {event.icon === "LockOpen" && <Unlock className="w-3.5 h-3.5" />}
+                                    {event.icon === "AlertTriangle" && <AlertTriangle className="w-3.5 h-3.5" />}
+                                    {event.icon === "FileText" && <Briefcase className="w-3.5 h-3.5" />}
+                                    {event.icon === "Hourglass" && <RefreshCw className="w-3.5 h-3.5" />}
+                                    {event.icon === "BadgeCheck" && <CheckCircle className="w-3.5 h-3.5" />}
+                                    {event.icon === "Plane" && <ExternalLink className="w-3.5 h-3.5" />}
+                                  </span>
+
+                                  {/* Step details content */}
+                                  <div className="space-y-1 pl-1">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 select-none">
+                                      <span className={`text-xs font-bold font-sans ${titleColorClass}`}>{event.title}</span>
+                                      <span className="text-[9.5px] font-mono text-stone-400 bg-white border border-stone-200/50 px-1.5 py-0.5 rounded shadow-3xs w-fit">
+                                        {formatAuditDate(event.date)}
+                                      </span>
+                                    </div>
+
+                                    <p className="text-[11px] text-stone-600 font-sans leading-relaxed">{event.description}</p>
+                                    
+                                    {event.reason && (
+                                      <div className="mt-1.5 bg-red-50/60 border border-red-100 rounded-md p-2 font-sans text-[10.5px] text-[#A30000] leading-normal break-words">
+                                        <strong>Rejection Reason:</strong> "{event.reason}"
+                                      </div>
+                                    )}
+
+                                    <div className="text-[9px] text-stone-400 font-mono flex items-center gap-1 select-none mt-1">
+                                      <span>Recorded by:</span>
+                                      <strong className="text-stone-500">{event.actor}</strong>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                      </div>
+
+                      {/* Footer Actions */}
+                      <div className="p-4 border-t border-line bg-white flex justify-end select-none">
+                        <button
+                          onClick={() => setSelectedAuditWorker(null)}
+                          className="px-4 py-2 bg-stone-950 hover:bg-stone-850 text-white rounded-lg text-xs font-semibold cursor-pointer shadow-sm transition-colors"
+                        >
+                          Close Details
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+            </div>
+          );
+        })()}
 
       </div>
 
