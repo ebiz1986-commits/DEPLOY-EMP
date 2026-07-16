@@ -77,6 +77,7 @@ export default function RecruiterIntakeView({
 
   // New links for resubmitting rejected workers
   const [resubmitLinks, setResubmitLinks] = useState<Record<string, string>>({});
+  const [showLinkInput, setShowLinkInput] = useState<Record<string, boolean>>({});
 
   const handleCsvParse = (text: string) => {
     setErrorMessage("");
@@ -1880,48 +1881,75 @@ export default function RecruiterIntakeView({
                                 )}
                               </div>
                               
-                              <div className="mt-2.5">
-                                <label className="text-[9px] uppercase font-mono font-bold text-slate-700 block mb-1">
-                                  Corrected Document Link / URL:
-                                </label>
-                                <input
-                                  type="text"
-                                  value={resubmitLinks[w.id] !== undefined ? resubmitLinks[w.id] : (w.doc_link || "")}
-                                  onChange={(e) => {
-                                    setResubmitLinks(prev => ({
-                                      ...prev,
-                                      [w.id]: e.target.value
-                                    }));
-                                  }}
-                                  placeholder="Paste corrected Google Drive or Dropbox link..."
-                                  className="w-full bg-white border border-rose-200 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 rounded px-2 py-1 text-xs outline-none text-slate-900 font-medium"
-                                />
-                              </div>
+                              {!showLinkInput[w.id] ? (
+                                <div className="mt-3 pt-2 border-t border-rose-200/40">
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setShowLinkInput(prev => ({ ...prev, [w.id]: true }));
+                                    }}
+                                    className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 rounded shadow-3xs cursor-pointer transition-all uppercase tracking-wider font-mono"
+                                  >
+                                    🔗 Enter Corrected Link
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="mt-3 pt-2 border-t border-rose-200/40 space-y-2 animate-fade-in">
+                                  <div>
+                                    <label className="text-[9px] uppercase font-mono font-bold text-slate-700 block mb-1">
+                                      Corrected Document Link / URL:
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={resubmitLinks[w.id] !== undefined ? resubmitLinks[w.id] : (w.doc_link || "")}
+                                      onChange={(e) => {
+                                        setResubmitLinks(prev => ({
+                                          ...prev,
+                                          [w.id]: e.target.value
+                                        }));
+                                      }}
+                                      placeholder="Paste corrected Google Drive or Dropbox link..."
+                                      className="w-full bg-white border border-rose-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 rounded px-2.5 py-1.5 text-xs outline-none text-slate-900 font-medium"
+                                      autoFocus
+                                    />
+                                  </div>
 
-                              <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-rose-200/40">
-                                <button
-                                  onClick={async (e) => {
-                                    e.preventDefault();
-                                    const finalLink = resubmitLinks[w.id] !== undefined ? resubmitLinks[w.id] : (w.doc_link || "");
-                                    if (!finalLink.trim()) {
-                                      alert("Please enter a corrected document link before resubmitting.");
-                                      return;
-                                    }
-                                    if (confirm(`Are you sure you want to resubmit candidate "${w.name}" to Admin 2 with the corrected link?`)) {
-                                      await onUpdateWorker(w.id, {
-                                        doc_upload_wa: "Pending",
-                                        doc_link: finalLink.trim(),
-                                        admin2_resubmit_date: new Date().toISOString().split("T")[0]
-                                      });
-                                      onRefresh();
-                                    }
-                                  }}
-                                  className="flex items-center gap-1 px-2 py-1 text-[9.5px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded border border-indigo-500/20 transition-all cursor-pointer shadow-2xs"
-                                  title="Resubmit worker to Admin 2"
-                                >
-                                  🔄 Resubmit with New Link
-                                </button>
-                              </div>
+                                  <div className="flex items-center gap-1.5 justify-end">
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        setShowLinkInput(prev => ({ ...prev, [w.id]: false }));
+                                      }}
+                                      className="px-2 py-1 text-[9.5px] font-semibold text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded cursor-pointer"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      onClick={async (e) => {
+                                        e.preventDefault();
+                                        const finalLink = resubmitLinks[w.id] !== undefined ? resubmitLinks[w.id] : (w.doc_link || "");
+                                        if (!finalLink.trim()) {
+                                          alert("Please enter a corrected document link before resubmitting.");
+                                          return;
+                                        }
+                                        if (confirm(`Are you sure you want to resubmit candidate "${w.name}" to Admin 2 with the corrected link?`)) {
+                                          await onUpdateWorker(w.id, {
+                                            doc_upload_wa: "Pending",
+                                            doc_link: finalLink.trim(),
+                                            admin2_resubmit_date: new Date().toISOString().split("T")[0]
+                                          });
+                                          setShowLinkInput(prev => ({ ...prev, [w.id]: false }));
+                                          onRefresh();
+                                        }
+                                      }}
+                                      className="flex items-center gap-1 px-2.5 py-1 text-[9.5px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded border border-indigo-500/20 transition-all cursor-pointer shadow-2xs"
+                                      title="Resubmit worker to Admin 2"
+                                    >
+                                      🔄 Resubmit
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
