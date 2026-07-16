@@ -75,6 +75,9 @@ export default function RecruiterIntakeView({
   // Deletion state
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
+  // New links for resubmitting rejected workers
+  const [resubmitLinks, setResubmitLinks] = useState<Record<string, string>>({});
+
   const handleCsvParse = (text: string) => {
     setErrorMessage("");
     setSuccessMessage("");
@@ -1876,13 +1879,38 @@ export default function RecruiterIntakeView({
                                   </div>
                                 )}
                               </div>
+                              
+                              <div className="mt-2.5">
+                                <label className="text-[9px] uppercase font-mono font-bold text-slate-700 block mb-1">
+                                  Corrected Document Link / URL:
+                                </label>
+                                <input
+                                  type="text"
+                                  value={resubmitLinks[w.id] !== undefined ? resubmitLinks[w.id] : (w.doc_link || "")}
+                                  onChange={(e) => {
+                                    setResubmitLinks(prev => ({
+                                      ...prev,
+                                      [w.id]: e.target.value
+                                    }));
+                                  }}
+                                  placeholder="Paste corrected Google Drive or Dropbox link..."
+                                  className="w-full bg-white border border-rose-200 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 rounded px-2 py-1 text-xs outline-none text-slate-900 font-medium"
+                                />
+                              </div>
+
                               <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-rose-200/40">
                                 <button
                                   onClick={async (e) => {
                                     e.preventDefault();
-                                    if (confirm(`Are you sure you want to resubmit candidate "${w.name}" to Admin 2 for review?`)) {
+                                    const finalLink = resubmitLinks[w.id] !== undefined ? resubmitLinks[w.id] : (w.doc_link || "");
+                                    if (!finalLink.trim()) {
+                                      alert("Please enter a corrected document link before resubmitting.");
+                                      return;
+                                    }
+                                    if (confirm(`Are you sure you want to resubmit candidate "${w.name}" to Admin 2 with the corrected link?`)) {
                                       await onUpdateWorker(w.id, {
                                         doc_upload_wa: "Pending",
+                                        doc_link: finalLink.trim(),
                                         admin2_resubmit_date: new Date().toISOString().split("T")[0]
                                       });
                                       onRefresh();
@@ -1891,7 +1919,7 @@ export default function RecruiterIntakeView({
                                   className="flex items-center gap-1 px-2 py-1 text-[9.5px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded border border-indigo-500/20 transition-all cursor-pointer shadow-2xs"
                                   title="Resubmit worker to Admin 2"
                                 >
-                                  🔄 Resubmit
+                                  🔄 Resubmit with New Link
                                 </button>
                               </div>
                             </div>
