@@ -768,7 +768,7 @@ export default function OperationsView({
                                   }}
                                   className="px-2 py-0.5 text-[8.5px] font-bold text-white bg-red-650 hover:bg-red-750 rounded leading-none cursor-pointer"
                                 >
-                                  Save
+                                  Publish
                                 </button>
                               </div>
                             </div>
