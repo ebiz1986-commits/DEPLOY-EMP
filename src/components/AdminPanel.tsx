@@ -97,9 +97,37 @@ export default function AdminPanel({
 }: AdminPanelProps) {
   
   // Navigation internal to Admin Settings panel
-  const [activeSubTab, setActiveSubTab] = useState<"project" | "quotas" | "companies" | "dropdowns" | "users" | "gdrive" | "bureau_xpact" | "worker_audit">("project");
+  const [activeSubTab, setActiveSubTab] = useState<"project" | "quotas" | "companies" | "dropdowns" | "users" | "gdrive" | "bureau_xpact" | "worker_audit" | "clear_data">("project");
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [resetConfirmText, setResetConfirmText] = useState("");
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleSystemReset = async () => {
+    if (resetConfirmText !== "ERASE AND LIVE PORTAL") return;
+    setIsResetting(true);
+    try {
+      const res = await fetch("/api/admin/clear-test-data", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        showSuccess("All test database profiles have been erased successfully. Portal is now running LIVE!");
+        setResetConfirmText("");
+        onRefresh(); // Refresh current page context & worker counts
+        setActiveSubTab("project"); // Redirect to projects subtab
+      } else {
+        showError(data.message || "Failed to clear test data.");
+      }
+    } catch (e) {
+      showError("Connection failed when resetting system.");
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   // Audit trail list and filter states
   const [auditSearch, setAuditSearch] = useState("");
@@ -761,6 +789,18 @@ export default function AdminPanel({
         >
           <Users2 className="w-3.5 h-3.5 inline mr-1.5" />
           WORKER AUDITS
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab("clear_data")}
+          className={`px-4 py-2.5 text-[11px] font-sans uppercase tracking-widest border-b-2 font-bold whitespace-nowrap cursor-pointer transition-colors ${
+            activeSubTab === "clear_data"
+              ? "border-red-600 text-red-650"
+              : "border-transparent text-muted hover:text-red-500"
+          }`}
+        >
+          <Trash2 className="w-3.5 h-3.5 inline mr-1.5 text-red-500" />
+          ERASE ALL TEST DATA
         </button>
 
       </div>
@@ -3463,6 +3503,70 @@ export default function AdminPanel({
             </div>
           );
         })()}
+
+        {activeSubTab === "clear_data" && (
+          <div className="bg-card border border-red-200 rounded-xl p-6 shadow-sm space-y-6 animate-fade-in font-sans">
+            <div className="flex items-center gap-3 pb-4 border-b border-line/60">
+              <AlertTriangle className="w-6 h-6 text-red-650 shrink-0" />
+              <div>
+                <h3 className="text-base font-semibold text-stone-900 font-display">
+                  System Hard Reset & Live Migration
+                </h3>
+                <p className="text-xs text-muted">
+                  Erase pre-loaded demo candidates, allocations, logs, and start using Sanken Overseas Platform in live real-time production.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-red-50/70 text-bad border border-red-200/50 rounded-xl text-xs space-y-2 font-sans">
+              <p className="font-bold flex items-center gap-1.5 text-red-800">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                CRITICAL WARNING: This action is irreversible!
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-red-750 font-medium ml-1">
+                <li>This will permanently delete all worker profiles (candidates) in the system across all project focus scopes.</li>
+                <li>All active pipeline counts, approvals, and logs will be reset back to empty.</li>
+                <li>Bureau and XPACT Quota allocations (additions and history logs) will be cleared.</li>
+                <li><strong>Safe Configurations Persisted:</strong> All registered system settings, supply companies/vendors, categories (to assign future quotas), dropdown lists, and personnel accounts (Admin, Recruiter, Engineer, Operations) will remain intact.</li>
+              </ul>
+            </div>
+
+            <div className="space-y-4 pt-2">
+              <p className="text-xs text-stone-600">
+                To prevent accidental deletion, type <strong className="font-mono text-stone-900 bg-paper border border-line px-1.5 py-0.5 rounded">ERASE AND LIVE PORTAL</strong> below to authorize the database reset:
+              </p>
+              
+              <div className="flex flex-col sm:flex-row gap-3 max-w-md">
+                <input
+                  type="text"
+                  placeholder="Type verification text..."
+                  value={resetConfirmText}
+                  onChange={(e) => setResetConfirmText(e.target.value)}
+                  className="bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs outline-none focus:border-red-500 font-mono text-ink w-full"
+                />
+                
+                <button
+                  type="button"
+                  disabled={resetConfirmText !== "ERASE AND LIVE PORTAL" || isResetting}
+                  onClick={handleSystemReset}
+                  className="px-5 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-lg text-xs font-mono font-bold uppercase tracking-wider transition-colors inline-flex items-center gap-1.5 justify-center shrink-0 cursor-pointer shadow-sm"
+                >
+                  {isResetting ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Erasing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Execute Reset</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
 

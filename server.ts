@@ -956,6 +956,26 @@ async function startServer() {
     res.json({ success: true });
   });
 
+  // API: Erase all test data & Start fresh (Admin Only)
+  app.post("/api/admin/clear-test-data", (req, res) => {
+    const db = readDb();
+    db.workers = [];
+    db.notifications = [
+      {
+        id: "notif-init",
+        message: "System initialized for live operations. All test candidate records and logs cleared.",
+        sender: "System Admin",
+        role: "admin",
+        created_at: new Date().toISOString(),
+        type: "success"
+      }
+    ];
+    db.bureau_allocations = [];
+    db.xpact_allocations = [];
+    writeDb(db);
+    res.json({ success: true, message: "System successfully reset! All candidate records, allocations, and notifications have been erased." });
+  });
+
   app.post("/api/notifications/custom", (req, res) => {
     const { message, sender, role, type, project_id } = req.body;
     if (!message) {
