@@ -10,6 +10,7 @@ import OperationsView from "./components/OperationsView";
 import AdminPanel from "./components/AdminPanel";
 import NotificationsPanel from "./components/NotificationsPanel";
 import AssessmentsView from "./components/AssessmentsView";
+import AssessmentRegistryView from "./components/AssessmentRegistryView";
 import { ShieldCheck, LogIn, Sparkles, Building2, Radio, RefreshCw, Volume2, X, Bell } from "lucide-react";
 import { db, handleFirestoreError, OperationType } from "./lib/firebase";
 import { collection, onSnapshot, doc, setDoc } from "firebase/firestore";
@@ -766,6 +767,17 @@ export default function App() {
       case "assessment":
         return (
           <AssessmentsView
+            currentUser={user}
+            darkMode={false}
+            candidates={candidates}
+            onSaveCandidate={handleSaveCandidate}
+            onDeleteCandidate={handleDeleteCandidate}
+            onSendCandidateToEngineer={handleSendCandidateToEngineer}
+          />
+        );
+      case "assessment_registry":
+        return (
+          <AssessmentRegistryView
             currentUser={user}
             darkMode={false}
             candidates={candidates}

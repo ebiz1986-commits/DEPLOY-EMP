@@ -9,7 +9,8 @@ import {
   Sliders,
   LogOut,
   Radio,
-  Building2
+  Building2,
+  Activity
 } from "lucide-react";
 import NotificationsPanel from "./NotificationsPanel";
 import { SankenLogo } from "./SankenLogo";
@@ -56,16 +57,19 @@ export default function Navbar({
         return roleStr === "admin";
       case "assessment":
         return roleStr === "recruiter" || roleStr === "engineer" || roleStr === "admin";
+      case "assessment_registry":
+        return roleStr === "recruiter" || roleStr === "engineer" || roleStr === "admin";
       default:
         return false;
     }
   };
 
   const menuItems = [
+    { id: "assessment", label: "Select Trade & Start Evaluation", icon: ClipboardCheck },
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "assessment_registry", label: "Assessed Candidates Directory", icon: Activity },
     { id: "intake", label: "Intake Portal", icon: UserPlus },
     { id: "engineer", label: "Gate Approvals", icon: ShieldCheck },
-    { id: "assessment", label: "Trade Assessment", icon: ClipboardCheck },
     { id: "operations", label: "Operations", icon: ClipboardList },
     { id: "admin", label: "Admin Settings", icon: Sliders }
   ];
@@ -91,22 +95,23 @@ export default function Navbar({
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-card border-b border-line px-5 py-3 h-16 flex items-center justify-between font-sans shadow-sm shrink-0">
+    <>
+      <header className="sticky top-0 z-40 w-full bg-card border-b border-line px-5 py-3 h-16 flex items-center justify-between font-sans shadow-sm shrink-0">
       
-      {/* BRAND & SSE STATUS */}
-      <div className="flex items-center gap-4">
-        {/* S Logo Icon */}
-        <div className="flex items-center gap-2.5">
-          <SankenLogo variant="diamonds" className="w-11 h-11 hover:scale-105 transition-transform" />
-          <div>
-            <h2 className="text-xs sm:text-sm font-bold tracking-tight text-ink font-display leading-tight">
-              Sanken Overseas
-            </h2>
-            <p className="text-[9px] text-muted font-mono uppercase tracking-wider font-semibold">
-              Pipeline Tracker
-            </p>
+        {/* BRAND & SSE STATUS */}
+        <div className="flex items-center gap-4">
+          {/* S Logo Icon */}
+          <div className="flex items-center gap-2.5">
+            <SankenLogo variant="diamonds" className="w-11 h-11 hover:scale-105 transition-transform" />
+            <div className="hidden sm:block">
+              <h2 className="text-xs sm:text-sm font-bold tracking-tight text-ink font-display leading-tight">
+                Sanken Overseas
+              </h2>
+              <p className="text-[9px] text-muted font-mono uppercase tracking-wider font-semibold">
+                Pipeline Tracker
+              </p>
+            </div>
           </div>
-        </div>
 
         {/* SSE Status Indicator */}
         <div className="hidden md:flex items-center gap-2 px-2.5 py-1 bg-paper/55 rounded-md border border-line/40 h-7">
@@ -127,31 +132,7 @@ export default function Navbar({
         </div>
       </div>
 
-      {/* HORIZONTAL NAVIGATION SWITCHER */}
-      <nav className="flex items-center gap-1.5 mx-4 overflow-x-auto py-1 scrollbar-none">
-        {menuItems.map((item) => {
-          const visible = hasAccess(item.id);
-          if (!visible) return null;
-
-          const IconComponent = item.icon;
-          const isActive = activeTab === item.id;
-
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all ${
-                isActive
-                  ? "bg-paper text-accent border border-line/60 font-semibold shadow-2xs"
-                  : "text-muted hover:text-ink hover:bg-paper/30 border border-transparent"
-              }`}
-            >
-              <IconComponent className={`w-4 h-4 shrink-0 ${isActive ? "text-accent" : "text-muted"}`} />
-              <span className="font-display hidden sm:inline">{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
+      
 
       {/* RIGHT SIDE ACTIONS: PROJECT FOCUS, NOTIFICATIONS & USER PROFILE */}
       <div className="flex items-center gap-3">
@@ -213,5 +194,34 @@ export default function Navbar({
         </div>
       </div>
     </header>
-  );
+
+    {/* DEDICATED HORIZONTAL NAVIGATION ROW (FOR DESKTOP & MOBILE) */}
+    <div className="w-full bg-card border-b border-line px-5 py-2 flex items-center justify-start overflow-x-auto scrollbar-none shrink-0 shadow-xs">
+      <nav className="flex items-center gap-1.5 py-0.5">
+        {menuItems.map((item) => {
+          const visible = hasAccess(item.id);
+          if (!visible) return null;
+
+          const IconComponent = item.icon;
+          const isActive = activeTab === item.id;
+
+          return (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all whitespace-nowrap border ${
+                isActive
+                  ? "bg-accent/10 text-accent border-accent/20 font-bold shadow-2xs"
+                  : "text-muted hover:text-ink hover:bg-paper border-transparent"
+              }`}
+            >
+              <IconComponent className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-accent stroke-[2.2]" : "text-muted"}`} />
+              <span className="font-display">{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+    </div>
+  </>
+);
 }
