@@ -10,5 +10,15 @@ service cloud.firestore {
     match /state_store/master {
       allow read, write: if true;
     }
+
+    // requirement_companies collection read/write
+    match /requirement_companies/{companyId} {
+      allow read, write: if true;
+    }
+
+    // candidates collection read/write
+    match /candidates/{candidateId} {
+      allow read, write: if true;
+    }
   }
 }

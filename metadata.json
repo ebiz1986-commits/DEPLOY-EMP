@@ -1,6 +1,6 @@
 {
   "name": "Worker Deployment Tracker",
   "description": "A multi-role operational workflow app replacing the manual Excel Masterfile for monitoring migrant worker visa and placement tracking with live category quotas.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

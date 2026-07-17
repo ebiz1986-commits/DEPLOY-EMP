@@ -5,6 +5,7 @@ import {
   UserPlus,
   ShieldCheck,
   ClipboardList,
+  ClipboardCheck,
   Sliders,
   LogOut,
   Radio,
@@ -53,6 +54,8 @@ export default function Navbar({
         return roleStr === "ops";
       case "admin":
         return roleStr === "admin";
+      case "assessment":
+        return roleStr === "recruiter" || roleStr === "engineer" || roleStr === "admin";
       default:
         return false;
     }
@@ -62,6 +65,7 @@ export default function Navbar({
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "intake", label: "Intake Portal", icon: UserPlus },
     { id: "engineer", label: "Gate Approvals", icon: ShieldCheck },
+    { id: "assessment", label: "Trade Assessment", icon: ClipboardCheck },
     { id: "operations", label: "Operations", icon: ClipboardList },
     { id: "admin", label: "Admin Settings", icon: Sliders }
   ];

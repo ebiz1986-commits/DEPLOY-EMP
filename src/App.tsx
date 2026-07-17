@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { UserRole, Worker, Category, Company, DropdownOption, User, ProjectDetail, SystemNotification, BureauAllocation, XpactAllocation } from "./types";
+import { UserRole, Worker, Category, Company, DropdownOption, User, ProjectDetail, SystemNotification, BureauAllocation, XpactAllocation, Candidate } from "./types";
 import Navbar from "./components/Navbar";
 import LoginView from "./components/LoginView";
 import DashboardView from "./components/DashboardView";
@@ -9,7 +9,11 @@ import EngineerApprovalsView from "./components/EngineerApprovalsView";
 import OperationsView from "./components/OperationsView";
 import AdminPanel from "./components/AdminPanel";
 import NotificationsPanel from "./components/NotificationsPanel";
+import AssessmentsView from "./components/AssessmentsView";
 import { ShieldCheck, LogIn, Sparkles, Building2, Radio, RefreshCw, Volume2, X, Bell } from "lucide-react";
+import { db, handleFirestoreError, OperationType } from "./lib/firebase";
+import { collection, onSnapshot, doc, setDoc } from "firebase/firestore";
+import { calculateOverallScore } from "./utils";
 
 export default function App() {
   // Authentication State
@@ -30,6 +34,31 @@ export default function App() {
   const [activeBroadcastToasts, setActiveBroadcastToasts] = useState<SystemNotification[]>([]);
   const [bureauAllocations, setBureauAllocations] = useState<BureauAllocation[]>([]);
   const [xpactAllocations, setXpactAllocations] = useState<XpactAllocation[]>([]);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [candidatesLoading, setCandidatesLoading] = useState(true);
+
+  // Sync candidate database from Firestore
+  useEffect(() => {
+    setCandidatesLoading(true);
+    const unsubscribe = onSnapshot(
+      collection(db, "candidates"),
+      (snapshot) => {
+        const list: Candidate[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ id: docSnap.id, ...docSnap.data() } as Candidate);
+        });
+        list.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+        setCandidates(list);
+        setCandidatesLoading(false);
+      },
+      (error) => {
+        console.error("Error subscribing to candidates in App.tsx:", error);
+        setCandidatesLoading(false);
+        handleFirestoreError(error, OperationType.LIST, "candidates");
+      }
+    );
+    return unsubscribe;
+  }, []);
 
   // Compute allowed projects based on user profile focus permissions
   const visibleProjects = React.useMemo(() => {
@@ -286,6 +315,96 @@ export default function App() {
     setUser(null);
     localStorage.removeItem("ksj_session");
     setActiveTab("dashboard");
+  };
+
+  const handleSaveCandidate = async (candidateData: Candidate) => {
+    try {
+      await setDoc(doc(db, "candidates", candidateData.id), candidateData);
+      return true;
+    } catch (error) {
+      console.error("Error saving candidate:", error);
+      handleFirestoreError(error, OperationType.WRITE, `candidates/${candidateData.id}`);
+      return false;
+    }
+  };
+
+  const handleDeleteCandidate = async (id: string) => {
+    try {
+      const { deleteDoc } = await import("firebase/firestore");
+      await deleteDoc(doc(db, "candidates", id));
+      return true;
+    } catch (error) {
+      console.error("Error deleting candidate:", error);
+      handleFirestoreError(error, OperationType.DELETE, `candidates/${id}`);
+      return false;
+    }
+  };
+
+  const handleSendCandidateToEngineer = async (candidate: Candidate) => {
+    // 1. Map candidate positionId to proper master category name
+    let categoryName = "Labur";
+    const posId = candidate.positionId;
+    if (posId === "bar_bender") categoryName = "Bar Bender";
+    else if (posId === "finishing_carpenter") categoryName = "Finishing Carpenter";
+    else if (posId === "labour") categoryName = "Labur";
+    else if (posId === "mason") categoryName = "Meson";
+    else if (posId === "rigger") categoryName = "Rigger";
+    else if (posId === "shoutering_carpenter") categoryName = "Shoutering Carpenter";
+    else if (posId === "spray_painter") categoryName = "Spray Painter";
+    else if (posId === "survey_helper") categoryName = "Survey Helper";
+    else if (posId === "tile_mason") categoryName = "Tile Mason";
+    else if (posId === "wall_painter") categoryName = "Wall Painter";
+
+    // 2. Find target project ID
+    let targetProjectId = selectedProjectId || "proj-1";
+    if (candidate.projectName && projects.length > 0) {
+      const match = projects.find(p => p.name.trim().toLowerCase() === candidate.projectName!.trim().toLowerCase());
+      if (match) {
+        targetProjectId = match.id;
+      }
+    }
+
+    // 3. Resolve supply company
+    const supplyCompany = candidate.requirementCompany || user?.recruiter_company || "KSJ";
+
+    // 4. Calculate interview score
+    const score = calculateOverallScore(candidate);
+    const passStatus = score > 59 ? "Pass" : "Fail";
+
+    // 5. Construct bulk worker payload
+    const payload = [{
+      name: candidate.name,
+      passport: candidate.passportNumber || `ID-${candidate.nicNumber || Date.now()}`,
+      category: categoryName,
+      supply_company: supplyCompany,
+      project_id: targetProjectId,
+      sr_number: candidate.referenceId || `SR-${Date.now().toString().slice(-4)}`,
+      employee_number: "",
+      nic_number: candidate.nicNumber || "",
+      remarks: candidate.notes || "",
+      interviewer_name: candidate.assessor || user?.name || "Recruiting Agent",
+      interview_status: passStatus as any,
+      interview_marks: String(score),
+      test_required: (candidate.practicalTestRequired ? "Yes" : "No") as any,
+      nationality: "Nepali"
+    }];
+
+    // 6. Call handleBulkAdd to create worker with state pending in the database!
+    const res = await handleBulkAdd(payload);
+    if (res.success) {
+      // 7. Set candidate sentToEngineer state in Firestore
+      try {
+        await setDoc(doc(db, "candidates", candidate.id), {
+          ...candidate,
+          sentToEngineer: true
+        });
+      } catch (err) {
+        console.error("Failed to update candidate sentToEngineer state in Firestore:", err);
+        handleFirestoreError(err, OperationType.WRITE, `candidates/${candidate.id}`);
+      }
+      return { success: true };
+    }
+    return res;
   };
 
   // REST API Methods for operations updates
@@ -575,6 +694,10 @@ export default function App() {
             onUpdateWorker={handleUpdateWorker}
             currentUser={user}
             onDeleteWorker={handleDeleteWorker}
+            candidates={candidates}
+            onSaveCandidate={handleSaveCandidate}
+            onDeleteCandidate={handleDeleteCandidate}
+            onSendCandidateToEngineer={handleSendCandidateToEngineer}
           />
         );
       case "engineer":
@@ -638,6 +761,17 @@ export default function App() {
             onUpdateBureauAllocations={handleUpdateBureauAllocations}
             onUpdateXpactAllocations={handleUpdateXpactAllocations}
             onUpdateWorker={handleUpdateWorker}
+          />
+        );
+      case "assessment":
+        return (
+          <AssessmentsView
+            currentUser={user}
+            darkMode={false}
+            candidates={candidates}
+            onSaveCandidate={handleSaveCandidate}
+            onDeleteCandidate={handleDeleteCandidate}
+            onSendCandidateToEngineer={handleSendCandidateToEngineer}
           />
         );
       default:

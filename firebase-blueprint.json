@@ -5,12 +5,52 @@
       "description": "Durable, high-integrity master snapshot tracking and syncing workers, quotas, system categories, and login allocations.",
       "type": "object",
       "properties": {}
+    },
+    "Candidate": {
+      "title": "Candidate Assessment Schema",
+      "description": "Information and scores about a recruited candidate's trade skill assessment.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "positionId": { "type": "string" },
+        "referenceId": { "type": "string" },
+        "nicNumber": { "type": "string" },
+        "passportNumber": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "date": { "type": "string" },
+        "assessor": { "type": "string" },
+        "contact": { "type": "string" },
+        "projectName": { "type": "string" },
+        "requirementCompany": { "type": "string" },
+        "practicalTestRequired": { "type": "boolean" },
+        "notes": { "type": "string" },
+        "status": { "type": "string" },
+        "isHundredScale": { "type": "boolean" },
+        "sentToEngineer": { "type": "boolean" }
+      }
+    },
+    "RequirementCompany": {
+      "title": "Requirement Company Schema",
+      "description": "Information about recruitment requirement companies.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      }
     }
   },
   "firestore": {
     "state_store/master": {
       "schema": "DbState",
       "description": "Primary backing collection storing the persistent JSON database state so it survives container restarts."
+    },
+    "candidates/{candidateId}": {
+      "schema": "Candidate",
+      "description": "Collection storing candidate trade assessments."
+    },
+    "requirement_companies/{companyId}": {
+      "schema": "RequirementCompany",
+      "description": "Collection storing requirement supply companies."
     }
   }
 }

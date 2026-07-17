@@ -126,3 +126,6 @@ export interface DbState {
   bureau_allocations?: BureauAllocation[];
   xpact_allocations?: XpactAllocation[];
 }
+
+export * from "./types-1";
+

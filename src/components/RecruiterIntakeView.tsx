@@ -36,6 +36,12 @@ interface RecruiterIntakeViewProps {
   onUpdateWorker: (id: string, updates: Partial<Worker>) => Promise<boolean>;
   currentUser?: User | null;
   onDeleteWorker?: (id: string) => Promise<boolean>;
+
+  // Firestore candidate properties
+  candidates?: any[];
+  onSaveCandidate?: (candidate: any) => Promise<boolean>;
+  onDeleteCandidate?: (id: string) => Promise<boolean>;
+  onSendCandidateToEngineer?: (candidate: any) => Promise<{ success: boolean; message?: string }>;
 }
 
 interface WorkerFormInput {
@@ -58,7 +64,11 @@ export default function RecruiterIntakeView({
   onBulkAdd,
   onUpdateWorker,
   currentUser,
-  onDeleteWorker
+  onDeleteWorker,
+  candidates = [],
+  onSaveCandidate,
+  onDeleteCandidate,
+  onSendCandidateToEngineer
 }: RecruiterIntakeViewProps) {
   
   // Bulk document link input state
@@ -316,6 +326,37 @@ export default function RecruiterIntakeView({
     }
   }, [categories]);
 
+  // Auto-generate the next unique SR Number based on existing workers
+  const nextSRNumber = useMemo(() => {
+    let maxNum = 1000; // default starting number, e.g. SR-1001
+    workers.forEach(w => {
+      if (w.sr_number) {
+        const match = w.sr_number.match(/^SR-(\d+)$/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) {
+            maxNum = num;
+          }
+        }
+      }
+    });
+    return `SR-${maxNum + 1}`;
+  }, [workers]);
+
+  React.useEffect(() => {
+    if (!editingWorkerId) {
+      setInterviewForm(prev => {
+        // Only update if currently empty or starts with SR- and is different from the newly calculated nextSRNumber
+        if (!prev.sr_number || prev.sr_number.toUpperCase().startsWith("SR-")) {
+          if (prev.sr_number !== nextSRNumber) {
+            return { ...prev, sr_number: nextSRNumber };
+          }
+        }
+        return prev;
+      });
+    }
+  }, [nextSRNumber, editingWorkerId]);
+
   React.useEffect(() => {
     if (projects.length > 0 && !interviewForm.project_id) {
       setInterviewForm(prev => ({ ...prev, project_id: projects[0].id }));
@@ -330,29 +371,24 @@ export default function RecruiterIntakeView({
   const [interviewSearch, setInterviewSearch] = useState("");
 
   const interviewRecords = useMemo(() => {
-    return workers.filter((w) => {
-      // Must be an interview entry (indicated by having an nic_number, employee_number or interview_status, etc.)
-      const isInterview = !!w.nic_number || !!w.sr_number || !!w.employee_number || w.interview_status !== undefined;
-      if (!isInterview) return false;
-
-      // Filter by supply company according to the active company selection
+    return (candidates || []).filter((c) => {
+      const company = c.requirementCompany || "";
       if (currentUser?.role === "recruiter") {
-        return w.supply_company === defaultCompany;
+        return company === defaultCompany;
       } else {
-        return activeSupplyCompany === "All" ? true : w.supply_company === activeSupplyCompany;
+        return activeSupplyCompany === "All" ? true : company === activeSupplyCompany;
       }
     });
-  }, [workers, currentUser, defaultCompany, activeSupplyCompany]);
+  }, [candidates, currentUser, defaultCompany, activeSupplyCompany]);
 
   const filteredInterviewRecords = useMemo(() => {
     const term = interviewSearch.trim().toLowerCase();
     if (!term) return interviewRecords;
-    return interviewRecords.filter(w => 
-      w.name.toLowerCase().includes(term) ||
-      (w.passport && w.passport.toLowerCase().includes(term)) ||
-      (w.nic_number && w.nic_number.toLowerCase().includes(term)) ||
-      (w.employee_number && w.employee_number.toLowerCase().includes(term)) ||
-      (w.sr_number && w.sr_number.toLowerCase().includes(term))
+    return interviewRecords.filter(c => 
+      c.name.toLowerCase().includes(term) ||
+      (c.passportNumber && c.passportNumber.toLowerCase().includes(term)) ||
+      (c.nicNumber && c.nicNumber.toLowerCase().includes(term)) ||
+      (c.referenceId && c.referenceId.toLowerCase().includes(term))
     );
   }, [interviewRecords, interviewSearch]);
 
@@ -558,41 +594,80 @@ export default function RecruiterIntakeView({
       return;
     }
 
-    // Check duplicate passport or NIC
+    // Check duplicate passport or NIC in candidates registry
     const passportUpper = interviewForm.passport.trim().toUpperCase();
     const nicTrimmed = interviewForm.nic_number.trim();
 
-    if (passportUpper && workers.some(w => w.id !== editingWorkerId && w.passport.trim().toUpperCase() === passportUpper)) {
-      setErrorMessage(`Validation Failure: Passport Number "${passportUpper}" already exists in the system master database.`);
+    if (passportUpper && candidates.some(c => c.id !== editingWorkerId && c.passportNumber?.trim().toUpperCase() === passportUpper)) {
+      setErrorMessage(`Validation Failure: Passport Number "${passportUpper}" already exists in the candidate registry.`);
       return;
     }
 
-    if (workers.some(w => w.id !== editingWorkerId && w.nic_number && w.nic_number.trim() === nicTrimmed)) {
-      setErrorMessage(`Validation Failure: NIC Number "${nicTrimmed}" already exists in the system master database.`);
+    if (candidates.some(c => c.id !== editingWorkerId && c.nicNumber && c.nicNumber.trim() === nicTrimmed)) {
+      setErrorMessage(`Validation Failure: NIC Number "${nicTrimmed}" already exists in the candidate registry.`);
       return;
     }
 
     setIsInterviewSubmitting(true);
     try {
-      if (editingWorkerId) {
-        const updates: Partial<Worker> = {
-          name: interviewForm.name.trim(),
-          passport: passportUpper || `ID-${nicTrimmed}`,
-          category: interviewForm.category,
-          project_id: interviewForm.project_id,
-          sr_number: interviewForm.sr_number.trim(),
-          employee_number: interviewForm.employee_number.trim(),
-          nic_number: nicTrimmed,
-          remarks: interviewForm.remarks.trim(),
-          interviewer_name: interviewForm.interviewer_name.trim(),
-          interview_status: interviewForm.interview_status,
-          interview_marks: interviewForm.interview_marks.trim(),
-          test_required: interviewForm.test_required,
-        };
+      let positionId: any = "labour";
+      const catNameLower = interviewForm.category.toLowerCase();
+      if (catNameLower.includes("bar bender")) positionId = "bar_bender";
+      else if (catNameLower.includes("carpenter") && catNameLower.includes("finish")) positionId = "finishing_carpenter";
+      else if (catNameLower.includes("carpenter") && catNameLower.includes("shout")) positionId = "shoutering_carpenter";
+      else if (catNameLower.includes("labour") || catNameLower.includes("labur")) positionId = "labour";
+      else if (catNameLower.includes("mason") && catNameLower.includes("tile")) positionId = "tile_mason";
+      else if (catNameLower.includes("mason") || catNameLower.includes("meson")) positionId = "mason";
+      else if (catNameLower.includes("rigger")) positionId = "rigger";
+      else if (catNameLower.includes("paint") && catNameLower.includes("spray")) positionId = "spray_painter";
+      else if (catNameLower.includes("paint") && catNameLower.includes("wall")) positionId = "wall_painter";
+      else if (catNameLower.includes("survey")) positionId = "survey_helper";
 
-        const success = await onUpdateWorker(editingWorkerId, updates);
+      let candidateStatus: any = "On Hold";
+      if (interviewForm.interview_status === "Pass") {
+        candidateStatus = "Selected";
+      } else if (interviewForm.interview_status === "Fail") {
+        candidateStatus = "Rejected";
+      }
+
+      const marksValue = parseFloat(interviewForm.interview_marks) || 0;
+      const targetProjectName = projects.find(p => p.id === interviewForm.project_id)?.name || "Default Project";
+      const existingCandidate = candidates?.find(c => c.id === editingWorkerId);
+
+      const candidateData = {
+        id: editingWorkerId || `cand-${Date.now()}`,
+        name: interviewForm.name.trim(),
+        positionId: positionId,
+        referenceId: interviewForm.sr_number.trim() || `REF-${Date.now().toString().slice(-4)}`,
+        nicNumber: nicTrimmed,
+        passportNumber: passportUpper,
+        date: new Date().toISOString().split("T")[0],
+        assessor: interviewForm.interviewer_name.trim() || currentUser?.name || "Recruiter",
+        projectName: targetProjectName,
+        requirementCompany: currentUser?.recruiter_company || activeSupplyCompany || "KSJ",
+        contact: existingCandidate?.contact || "",
+        notes: interviewForm.remarks.trim(),
+        status: candidateStatus,
+        practicalTestRequired: interviewForm.test_required === "Yes",
+        isHundredScale: true,
+        s1_siteExperience: marksValue,
+        s1_nvqQualification: marksValue,
+        s1_recommendation: marksValue,
+        s2_measurementReading: marksValue,
+        s2_machineKnowledge: marksValue,
+        s2_methodology: marksValue,
+        s2_hseEquipment: marksValue,
+        s3_physicalAppearance: marksValue,
+        s3_healthCondition: marksValue,
+        s3_characterAttitude: marksValue,
+        s3_extendedHours: marksValue,
+        sentToEngineer: existingCandidate?.sentToEngineer || false
+      };
+
+      if (onSaveCandidate) {
+        const success = await onSaveCandidate(candidateData);
         if (success) {
-          setSuccessMessage(`Success: Interview Entry for "${interviewForm.name}" successfully updated.`);
+          setSuccessMessage(`Success: Interview Entry for "${interviewForm.name}" successfully stored in candidate database.`);
           setEditingWorkerId(null);
           setInterviewForm({
             sr_number: "",
@@ -610,48 +685,10 @@ export default function RecruiterIntakeView({
           });
           onRefresh();
         } else {
-          setErrorMessage("Failed to update interview record.");
+          setErrorMessage("Failed to save interview scorecard in database.");
         }
       } else {
-        const payload = [{
-          name: interviewForm.name.trim(),
-          passport: passportUpper || `ID-${nicTrimmed}`, // Use ID-NIC if passport is empty
-          category: interviewForm.category,
-          supply_company: activeSupplyCompany,
-          project_id: interviewForm.project_id,
-          sr_number: interviewForm.sr_number.trim(),
-          employee_number: interviewForm.employee_number.trim(),
-          nic_number: nicTrimmed,
-          remarks: interviewForm.remarks.trim(),
-          interviewer_name: interviewForm.interviewer_name.trim(),
-          interview_status: interviewForm.interview_status,
-          interview_marks: interviewForm.interview_marks.trim(),
-          test_required: interviewForm.test_required,
-          state: "pending" as const,
-          status: "Pending",
-          nationality: dropdownOptions.filter(d => d.field === "nationality")[0]?.value || "Nepali"
-        }];
-
-        const res = await onBulkAdd(payload);
-        if (res.success) {
-          setSuccessMessage(`Success: Interview Entry for "${interviewForm.name}" successfully stored in the central table.`);
-          setInterviewForm({
-            sr_number: "",
-            employee_number: "",
-            name: "",
-            nic_number: "",
-            passport: "",
-            category: categories[0]?.name || "",
-            project_id: projects[0]?.id || "",
-            remarks: "",
-            interviewer_name: "",
-            interview_status: "Pending",
-            interview_marks: "",
-            test_required: "No"
-          });
-        } else {
-          setErrorMessage(res.message || "An error occurred during submission.");
-        }
+        setErrorMessage("Save candidate hook is not defined.");
       }
     } catch (err) {
       setErrorMessage("Database write failed or timed out.");
@@ -2324,13 +2361,16 @@ export default function RecruiterIntakeView({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* SR Number */}
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700 block">SR Number</label>
+                  <label className="text-xs font-semibold text-slate-700 block flex items-center justify-between">
+                    <span>SR Number</span>
+                    <span className="text-[10px] text-indigo-700 font-bold bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded font-mono">Auto-Assigned</span>
+                  </label>
                   <input
                     type="text"
+                    readOnly
                     value={interviewForm.sr_number}
-                    onChange={(e) => setInterviewForm(prev => ({ ...prev, sr_number: e.target.value }))}
-                    placeholder="e.g. SR-1025"
-                    className="w-full text-xs bg-white border border-slate-350 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 rounded-lg p-2.5 outline-none font-medium shadow-3xs text-slate-900"
+                    placeholder="Auto-assigning identifier..."
+                    className="w-full text-xs bg-slate-100 border border-slate-300 rounded-lg p-2.5 outline-none font-mono font-medium shadow-3xs text-slate-600 cursor-not-allowed"
                   />
                 </div>
 

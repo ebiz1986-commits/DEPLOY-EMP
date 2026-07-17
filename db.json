@@ -1,143 +1,191 @@
 {
+  "project_detail": {
+    "name": "W Resort",
+    "engineer_in_charge": "Upendra",
+    "id": "proj-1780750861589",
+    "admin_coordinator": "Gayan",
+    "client": "W Resort",
+    "location": "W Resort",
+    "contract_number": "W-001"
+  },
+  "companies": [
+    {
+      "name": "KSJ",
+      "id": "co-1"
+    },
+    {
+      "name": "SKILL",
+      "id": "co-1780751650829"
+    },
+    {
+      "id": "co-1780751666336",
+      "name": "DEK"
+    }
+  ],
+  "workers": [
+    {
+      "interview_status": "Pending",
+      "doc_link": "",
+      "project_id": "proj-1780750861589",
+      "id": "w-1784261886725-1560",
+      "doc_upload_wa": "Pending",
+      "final_status": "Pending",
+      "bureau": "Pending",
+      "employee_number": "EMP23",
+      "bulk_doc_link": "",
+      "remarks": "",
+      "gate_reject_reason": "",
+      "interview_marks": "",
+      "category": "Finishing Carpenter",
+      "status": "Pending",
+      "status_date": "2026-07-17",
+      "nic_number": "861583945v",
+      "state": "pending",
+      "name": "Tharindu sumdu sanjeewa",
+      "test_required": "No",
+      "doc_upload_wa_date": "2026-07-17",
+      "final_status_date": "2026-07-17",
+      "created_at": "2026-07-17T04:18:06.725Z",
+      "wa_doc_reject_reason": "",
+      "nationality": "Bangladeshi",
+      "bureau_date": "2026-07-17",
+      "admin2_submit_date": "2026-07-17",
+      "supply_company": "KSJ",
+      "interviewer_name": "",
+      "passport": "N12345",
+      "sr_number": "SR-1001"
+    }
+  ],
+  "bureau_allocations": [],
+  "notifications": [
+    {
+      "sender": "Recruiter Portal",
+      "id": "notif-1784261886725-6639",
+      "created_at": "2026-07-17T04:18:06.725Z",
+      "type": "success",
+      "associated_company": "KSJ",
+      "message": "Recruiter intake added 1 candidate(s) for project target: \"W Resort\"",
+      "project_id": "proj-1780750861589",
+      "role": "recruiter"
+    },
+    {
+      "type": "success",
+      "created_at": "2026-07-16T09:58:59.067Z",
+      "id": "notif-init",
+      "sender": "System Admin",
+      "role": "admin",
+      "message": "System initialized for live operations. All test candidate records and logs cleared."
+    }
+  ],
+  "xpact_allocations": [],
+  "users": [
+    {
+      "name": "Admin (System Admin)",
+      "username": "admin",
+      "role": "admin",
+      "password": "password"
+    },
+    {
+      "username": "skill",
+      "recruiter_company": "SKILL",
+      "role": "recruiter",
+      "name": "Hasantha",
+      "assigned_projects": [
+        "proj-1780750861589"
+      ],
+      "password": "445566"
+    },
+    {
+      "name": "DEK-AMILA",
+      "assigned_projects": [
+        "proj-1780750861589"
+      ],
+      "password": "445566",
+      "username": "dek",
+      "role": "recruiter",
+      "recruiter_company": "DEK"
+    },
+    {
+      "username": "sko",
+      "role": "ops",
+      "name": "sko",
+      "assigned_projects": [
+        "proj-1780750861589"
+      ],
+      "password": "123"
+    },
+    {
+      "name": "ksj",
+      "assigned_projects": [
+        "proj-1780750861589"
+      ],
+      "password": "123",
+      "username": "ksj",
+      "role": "recruiter",
+      "recruiter_company": "KSJ"
+    },
+    {
+      "role": "engineer",
+      "username": "skoeng",
+      "assigned_projects": [
+        "proj-1780750861589"
+      ],
+      "password": "123",
+      "name": "skoeng"
+    }
+  ],
   "categories": [
     {
-      "id": "cat-1",
-      "name": "Labur",
+      "max_quota": 120,
       "company_allocations": {
-        "KSJ": 50,
+        "DEK": 30,
         "SKILL": 40,
-        "DEK": 30
+        "KSJ": 50
       },
-      "max_quota": 120
+      "id": "cat-1",
+      "name": "Labur"
     },
     {
-      "id": "cat-2",
-      "name": "Finishing Carpenter",
+      "max_quota": 90,
       "company_allocations": {
-        "KSJ": 40,
         "SKILL": 30,
-        "DEK": 20
+        "DEK": 20,
+        "KSJ": 40
       },
-      "max_quota": 90
+      "id": "cat-2",
+      "name": "Finishing Carpenter"
     },
     {
-      "id": "cat-3",
+      "max_quota": 75,
       "company_allocations": {
         "KSJ": 30,
         "SKILL": 25,
         "DEK": 20
       },
-      "max_quota": 75,
-      "name": "Meson"
+      "name": "Meson",
+      "id": "cat-3"
     },
     {
-      "company_allocations": {
-        "SKILL": 15,
-        "KSJ": 15,
-        "DEK": 10
-      },
-      "max_quota": 40,
+      "id": "cat-4",
       "name": "Rigger",
-      "id": "cat-4"
-    },
-    {
+      "max_quota": 40,
       "company_allocations": {
-        "SKILL": 5,
-        "KSJ": 5,
-        "DEK": 5
-      },
+        "KSJ": 15,
+        "SKILL": 15,
+        "DEK": 10
+      }
+    },
+    {
       "max_quota": 15,
-      "name": "welders",
-      "id": "cat-5"
+      "company_allocations": {
+        "KSJ": 5,
+        "DEK": 5,
+        "SKILL": 5
+      },
+      "id": "cat-5",
+      "name": "welders"
     }
   ],
-  "projects": [
-    {
-      "name": "O & O PH2.0",
-      "location": "RETHI RA",
-      "engineer_in_charge": "Managammana",
-      "client": "ONE AND ONLY HOTEL",
-      "id": "proj-1780750861589",
-      "admin_coordinator": "Gayan",
-      "contract_number": "O&O-001"
-    }
-  ],
-  "workers": [
-    {
-      "name": "GAYAN",
-      "final_status_date": "2026-06-15",
-      "bulk_doc_link": "",
-      "wa_doc_reject_reason": "",
-      "doc_link": "https://sankenoverseas-my.sharepoint.com/:f:/p/nuwan_s/IgBMfiJ0Z_nvTIdLmlcCCA8PASoYhzOXMRC3pkB_UBk7cIo?e=OnVKjj",
-      "category": "welders",
-      "gate_reject_reason": "",
-      "bureau_date": "2026-06-15",
-      "passport": "N464564",
-      "doc_upload_wa_date": "2026-06-15",
-      "created_at": "2026-06-15T05:09:43.680Z",
-      "project_id": "proj-1780750861589",
-      "nationality": "Sri Lankan",
-      "final_status": "Pending",
-      "doc_upload_wa": "Pending",
-      "status_date": "2026-06-15",
-      "id": "w-1781500183680-1513",
-      "supply_company": "KSJ",
-      "bureau": "Pending",
-      "status": "Pending",
-      "state": "pending"
-    },
-    {
-      "passport": "A5678",
-      "doc_upload_wa_date": "2026-06-14",
-      "last_updated": "2026-06-14",
-      "created_at": "2026-06-14T16:29:26.411Z",
-      "project_id": "proj-1780750861589",
-      "gate_reject_reason": "",
-      "bureau_date": "2026-06-14",
-      "doc_upload_wa": "Yes",
-      "status_date": "2026-06-14",
-      "id": "w-1781454566411-7792",
-      "supply_company": "KSJ",
-      "bureau": "Pending",
-      "status": "Pending",
-      "state": "active",
-      "sending_batch": "B-001",
-      "nationality": "Indian",
-      "final_status": "Pending",
-      "wa_doc_reject_reason": "",
-      "doc_link": "",
-      "visa_doc_date": "2026-06-14",
-      "name": "hashan",
-      "bulk_doc_link": "",
-      "final_status_date": "2026-06-14",
-      "category": "Meson"
-    },
-    {
-      "category": "Labur",
-      "bulk_doc_link": "",
-      "final_status_date": "2026-06-14",
-      "name": "ruwan ekanayalka",
-      "doc_link": "",
-      "wa_doc_reject_reason": "",
-      "final_status": "Pending",
-      "nationality": "Indian",
-      "status": "Pending",
-      "state": "rejected",
-      "status_date": "2026-06-14",
-      "id": "w-1781453283994-3636",
-      "bureau": "Pending",
-      "supply_company": "KSJ",
-      "doc_upload_wa": "Pending",
-      "bureau_date": "2026-06-14",
-      "gate_reject_reason": "NO DOCUMENT",
-      "project_id": "proj-1780750861589",
-      "created_at": "2026-06-14T16:08:03.994Z",
-      "doc_upload_wa_date": "2026-06-14",
-      "last_updated": "2026-06-14",
-      "passport": "A45678"
-    }
-  ],
-  "bureau_allocations": [],
   "dropdown_options": [
     {
       "field": "status",
@@ -145,260 +193,96 @@
       "value": "Pending"
     },
     {
-      "field": "status",
+      "value": "Visa Approved (xpact)",
       "id": "opt-6",
-      "value": "Visa Approved (xpact)"
-    },
-    {
-      "value": "Visa Reject (xpact)",
-      "id": "opt-7",
       "field": "status"
     },
     {
-      "value": "Applied second time",
       "field": "status",
+      "value": "Visa Reject (xpact)",
+      "id": "opt-7"
+    },
+    {
+      "field": "status",
+      "value": "Applied second time",
       "id": "opt-8"
     },
     {
+      "field": "bureau",
       "id": "opt-9",
-      "field": "bureau",
       "value": "Pending"
     },
     {
-      "value": "Complete",
       "field": "bureau",
-      "id": "opt-10"
+      "id": "opt-10",
+      "value": "Complete"
     },
     {
+      "field": "bureau",
       "value": "Reject",
-      "id": "opt-11",
-      "field": "bureau"
+      "id": "opt-11"
     },
     {
+      "value": "Pending",
       "id": "opt-12",
-      "field": "final_status",
-      "value": "Pending"
+      "field": "final_status"
     },
     {
-      "value": "Booked",
       "field": "final_status",
-      "id": "opt-13"
+      "id": "opt-13",
+      "value": "Booked"
     },
     {
       "value": "Arrived",
-      "field": "final_status",
-      "id": "opt-14"
+      "id": "opt-14",
+      "field": "final_status"
     },
     {
+      "value": "B-001",
       "id": "opt-1780751695294",
-      "field": "sending_batch",
-      "value": "B-001"
-    },
-    {
-      "field": "sending_batch",
-      "id": "opt-1780751702617",
-      "value": "B-002"
-    },
-    {
-      "value": "B-003",
-      "id": "opt-1780751714532",
       "field": "sending_batch"
     },
     {
+      "field": "sending_batch",
+      "value": "B-002",
+      "id": "opt-1780751702617"
+    },
+    {
+      "field": "sending_batch",
+      "value": "B-003",
+      "id": "opt-1780751714532"
+    },
+    {
       "value": "Bangladeshi",
+      "id": "opt-nat-bg",
+      "field": "nationality"
+    },
+    {
       "field": "nationality",
-      "id": "opt-nat-bg"
-    },
-    {
-      "value": "Indian",
       "id": "opt-nat-in",
-      "field": "nationality"
+      "value": "Indian"
     },
     {
-      "value": "Sri Lankan",
       "id": "opt-nat-sl",
+      "value": "Sri Lankan",
       "field": "nationality"
     },
     {
-      "value": "Nepali",
       "id": "opt-nat-np",
+      "value": "Nepali",
       "field": "nationality"
-    }
-  ],
-  "xpact_allocations": [
-    {
-      "id": "xpact-1781446344845scpp",
-      "ref_no": "kl555",
-      "last_updated": "6/15/2026, 10:35:49 AM",
-      "category": "Labur",
-      "qty": 27,
-      "additions": [
-        {
-          "date": "6/15/2026, 10:35:49 AM",
-          "qty": 2,
-          "ref_no": "kl555"
-        },
-        {
-          "ref_no": "intioal",
-          "qty": 25,
-          "date": "6/14/2026, 7:43:45 PM"
-        }
-      ]
-    },
-    {
-      "category": "Meson",
-      "additions": [
-        {
-          "date": "6/14/2026, 7:43:58 PM",
-          "qty": 37,
-          "ref_no": "REF-1692"
-        }
-      ],
-      "qty": 37,
-      "id": "xpact-1781446384825i02x",
-      "last_updated": "6/14/2026, 7:43:58 PM",
-      "ref_no": "REF-1692"
-    }
-  ],
-  "companies": [
-    {
-      "name": "KSJ",
-      "id": "co-1"
-    },
-    {
-      "id": "co-1780751650829",
-      "name": "SKILL"
-    },
-    {
-      "id": "co-1780751666336",
-      "name": "DEK"
-    }
-  ],
-  "notifications": [
-    {
-      "id": "notif-1781500183680-3019",
-      "role": "recruiter",
-      "project_id": "proj-1780750861589",
-      "type": "success",
-      "created_at": "2026-06-15T05:09:43.680Z",
-      "associated_company": "KSJ",
-      "message": "Recruiter intake added 1 candidate(s) for project target: \"O & O PH2.0\"",
-      "sender": "Recruiter Portal"
-    },
-    {
-      "sender": "Site Engineer",
-      "associated_company": "KSJ",
-      "message": "Engineer Ir. Tan approved worker candidate \"hashan\" under \"Meson\" category for project target: \"O & O PH2.0\"",
-      "project_id": "proj-1780750861589",
-      "type": "success",
-      "created_at": "2026-06-14T16:29:46.372Z",
-      "id": "notif-1781454586372-445",
-      "role": "engineer"
-    },
-    {
-      "sender": "Recruiter Portal",
-      "associated_company": "KSJ",
-      "message": "Recruiter intake added 1 candidate(s) for project target: \"O & O PH2.0\"",
-      "project_id": "proj-1780750861589",
-      "type": "success",
-      "created_at": "2026-06-14T16:29:26.412Z",
-      "id": "notif-1781454566412-2930",
-      "role": "recruiter"
-    },
-    {
-      "type": "error",
-      "project_id": "proj-1780750861589",
-      "created_at": "2026-06-14T16:09:02.815Z",
-      "id": "notif-1781453342815-9313",
-      "role": "engineer",
-      "sender": "Site Engineer",
-      "associated_company": "KSJ",
-      "message": "Engineer Ir. Tan REJECTED worker candidate \"ruwan ekanayalka\" (Labur) under gate approvals for project: \"O & O PH2.0\" (Agency: KSJ). Reason: NO DOCUMENT"
-    },
-    {
-      "type": "success",
-      "project_id": "proj-1780750861589",
-      "created_at": "2026-06-14T16:08:03.994Z",
-      "id": "notif-1781453283994-6559",
-      "role": "recruiter",
-      "sender": "Recruiter Portal",
-      "associated_company": "KSJ",
-      "message": "Recruiter intake added 1 candidate(s) for project target: \"O & O PH2.0\""
-    }
-  ],
-  "users": [
-    {
-      "password": "password",
-      "username": "admin",
-      "role": "admin",
-      "name": "Admin (System Admin)"
-    },
-    {
-      "assigned_projects": [
-        "proj-1780750861589"
-      ],
-      "name": "Managama san",
-      "username": "sko-eng",
-      "password": "223344",
-      "role": "engineer"
-    },
-    {
-      "role": "recruiter",
-      "recruiter_company": "SKILL",
-      "password": "445566",
-      "username": "skill",
-      "name": "Hasantha",
-      "assigned_projects": [
-        "proj-1780750861589"
-      ]
-    },
-    {
-      "assigned_projects": [
-        "proj-1780750861589"
-      ],
-      "name": "DEK-AMILA",
-      "recruiter_company": "DEK",
-      "password": "445566",
-      "username": "dek",
-      "role": "recruiter"
-    },
-    {
-      "password": "556677",
-      "username": "sko-admin",
-      "name": "SISIRA",
-      "assigned_projects": [
-        "proj-1780750861589"
-      ],
-      "role": "viewer"
-    },
-    {
-      "username": "sko",
-      "password": "123",
-      "assigned_projects": [
-        "proj-1780750861589"
-      ],
-      "name": "sko",
-      "role": "ops"
-    },
-    {
-      "role": "recruiter",
-      "name": "ksj",
-      "assigned_projects": [
-        "proj-1780750861589"
-      ],
-      "recruiter_company": "KSJ",
-      "password": "123",
-      "username": "ksj"
     }
   ],
   "selected_project_id": "proj-1780750861589",
-  "project_detail": {
-    "id": "proj-1780750861589",
-    "contract_number": "O&O-001",
-    "admin_coordinator": "Gayan",
-    "name": "O & O PH2.0",
-    "location": "RETHI RA",
-    "client": "ONE AND ONLY HOTEL",
-    "engineer_in_charge": "Managammana"
-  }
+  "projects": [
+    {
+      "client": "W Resort",
+      "name": "W Resort",
+      "engineer_in_charge": "Upendra",
+      "id": "proj-1780750861589",
+      "admin_coordinator": "Gayan",
+      "contract_number": "W-001",
+      "location": "W Resort"
+    }
+  ]
 }
