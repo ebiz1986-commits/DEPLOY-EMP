@@ -23,6 +23,7 @@ import {
   Plane
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { calculateOverallScore } from "../utils";
 
 interface RecruiterIntakeViewProps {
   workers: Worker[];
@@ -95,21 +96,73 @@ export default function RecruiterIntakeView({
   const [isInterviewSubmitting, setIsInterviewSubmitting] = useState(false);
   const [editingWorkerId, setEditingWorkerId] = useState<string | null>(null);
 
-  const handleEditInterviewClick = (w: Worker) => {
+  const handleEditInterviewClick = (w: any) => {
     setEditingWorkerId(w.id);
+
+    // Resolve Category Name
+    let catName = w.category || "";
+    if (!catName && w.positionId) {
+      const categoryMap: { [key: string]: string } = {
+        bar_bender: "Bar Bender",
+        finishing_carpenter: "Finishing Carpenter",
+        labour: "Labur",
+        mason: "Meson",
+        rigger: "Rigger",
+        shoutering_carpenter: "Shoutering Carpenter",
+        spray_painter: "Spray Painter",
+        survey_helper: "Survey Helper",
+        tile_mason: "Tile Mason",
+        wall_painter: "Wall Painter"
+      };
+      catName = categoryMap[w.positionId] || w.positionId;
+    }
+
+    // Resolve Project ID
+    let projId = w.project_id || "";
+    if (!projId && w.projectName && projects) {
+      const foundProj = projects.find(p => p.name.trim().toLowerCase() === w.projectName.trim().toLowerCase());
+      if (foundProj) {
+        projId = foundProj.id;
+      }
+    }
+    if (!projId && projects && projects.length > 0) {
+      projId = projects[0].id;
+    }
+
+    // Resolve Interview Status
+    let statusVal: "Pending" | "Pass" | "Fail" = "Pending";
+    if (w.interview_status) {
+      statusVal = w.interview_status;
+    } else if (w.status === "Selected") {
+      statusVal = "Pass";
+    } else if (w.status === "Rejected") {
+      statusVal = "Fail";
+    }
+
+    // Resolve Marks
+    const marksVal = w.interview_marks !== undefined ? w.interview_marks : (w.s1_siteExperience !== undefined ? String(w.s1_siteExperience) : "");
+
+    // Resolve Test Required
+    let testReq: "Yes" | "No" = "No";
+    if (w.test_required) {
+      testReq = w.test_required;
+    } else if (w.practicalTestRequired !== undefined) {
+      testReq = w.practicalTestRequired ? "Yes" : "No";
+    }
+
     setInterviewForm({
-      sr_number: w.sr_number || "",
+      sr_number: w.sr_number || w.referenceId || "",
       employee_number: w.employee_number || "",
       name: w.name || "",
-      nic_number: w.nic_number || "",
-      passport: w.passport || "",
-      category: w.category || "",
-      project_id: w.project_id || "",
-      remarks: w.remarks || "",
-      interviewer_name: w.interviewer_name || "",
-      interview_status: w.interview_status || "Pending",
-      interview_marks: w.interview_marks || "",
-      test_required: w.test_required || "No"
+      nic_number: w.nic_number || w.nicNumber || "",
+      passport: w.passport || w.passportNumber || "",
+      category: catName,
+      project_id: projId,
+      remarks: w.remarks || w.notes || "",
+      interviewer_name: w.interviewer_name || w.assessor || "",
+      interview_status: statusVal,
+      interview_marks: marksVal,
+      test_required: testReq
     });
   };
 
@@ -2637,44 +2690,60 @@ export default function RecruiterIntakeView({
                     </tr>
                   ) : (
                     filteredInterviewRecords.map((w) => {
+                      let statusText = "Pending";
                       let resColor = "bg-amber-50 text-amber-700 border-amber-200";
-                      if (w.interview_status === "Pass") {
+                      if (w.status === "Selected") {
+                        statusText = "Pass";
                         resColor = "bg-green-50 text-success-green border-green-200";
-                      } else if (w.interview_status === "Fail") {
+                      } else if (w.status === "Rejected") {
+                        statusText = "Fail";
                         resColor = "bg-red-50 text-bad border-red-200";
                       }
 
-                      const projName = projects.find(p => p.id === w.project_id)?.name || "Default Site";
+                      const categoryMap: { [key: string]: string } = {
+                        bar_bender: "Bar Bender",
+                        finishing_carpenter: "Finishing Carpenter",
+                        labour: "Labur",
+                        mason: "Meson",
+                        rigger: "Rigger",
+                        shoutering_carpenter: "Shoutering Carpenter",
+                        spray_painter: "Spray Painter",
+                        survey_helper: "Survey Helper",
+                        tile_mason: "Tile Mason",
+                        wall_painter: "Wall Painter"
+                      };
+                      const categoryName = categoryMap[w.positionId] || w.positionId || "Labur";
+                      const overallScore = calculateOverallScore(w);
 
                       return (
                         <tr key={w.id} className="hover:bg-paper/10 transition-colors font-semibold">
                           <td className="p-3 pl-5 font-mono text-[11px] text-slate-700">
-                            <div>SR: {w.sr_number || "—"}</div>
-                            <div className="text-[10px] text-slate-400">EMP: {w.employee_number || "—"}</div>
+                            <div>SR: {w.referenceId || "—"}</div>
+                            <div className="text-[10px] text-slate-400">EMP: —</div>
                           </td>
                           <td className="p-3">
                             <div className="font-bold text-slate-900">{w.name}</div>
-                            <div className="text-[10px] text-slate-500 font-semibold font-mono">NIC: {w.nic_number || "—"}</div>
+                            <div className="text-[10px] text-slate-500 font-semibold font-mono">NIC: {w.nicNumber || "—"}</div>
                           </td>
-                          <td className="p-3 font-mono text-slate-800">{w.passport || "—"}</td>
+                          <td className="p-3 font-mono text-slate-800">{w.passportNumber || "—"}</td>
                           <td className="p-3">
-                            <div className="text-slate-900">{w.category}</div>
-                            <div className="text-[10px] text-indigo-700">{projName}</div>
+                            <div className="text-slate-900">{categoryName}</div>
+                            <div className="text-[10px] text-indigo-700">{w.projectName || "Default Site"}</div>
                           </td>
                           <td className="p-3 text-slate-800">
-                            <div className="text-slate-700 font-medium">Interviewer: {w.interviewer_name || "—"}</div>
-                            <div className="text-[10px] font-mono text-slate-500">Marks: {w.interview_marks || "—"}</div>
+                            <div className="text-slate-700 font-medium">Interviewer: {w.assessor || "—"}</div>
+                            <div className="text-[10px] font-mono text-slate-500">Marks: {overallScore || "—"}</div>
                           </td>
                           <td className="p-3 text-center">
                             <span className={`inline-flex px-2 py-0.5 text-[10px] uppercase font-mono font-bold rounded-full border ${resColor}`}>
-                              {w.interview_status || "Pending"}
+                              {statusText}
                             </span>
                           </td>
                           <td className="p-3 text-center">
                             <span className={`inline-flex px-2 py-0.5 text-[10px] font-semibold rounded ${
-                              w.test_required === "Yes" ? "bg-amber-100 text-amber-850 border border-amber-200" : "bg-slate-100 text-slate-600"
+                              w.practicalTestRequired ? "bg-amber-100 text-amber-850 border border-amber-200" : "bg-slate-100 text-slate-600"
                             }`}>
-                              {w.test_required || "No"}
+                              {w.practicalTestRequired ? "Yes" : "No"}
                             </span>
                           </td>
                           <td className="p-3 pr-5 text-right whitespace-nowrap">
@@ -2688,8 +2757,8 @@ export default function RecruiterIntakeView({
                               {currentUser?.role === "admin" && (
                                 <button
                                   onClick={async () => {
-                                    if (onDeleteWorker && confirm(`Are you sure you want to delete interview candidate "${w.name}"?`)) {
-                                      await onDeleteWorker(w.id);
+                                    if (onDeleteCandidate && confirm(`Are you sure you want to delete interview candidate "${w.name}"?`)) {
+                                      await onDeleteCandidate(w.id);
                                       onRefresh();
                                     }
                                   }}
