@@ -95,16 +95,10 @@ export default function App() {
         setUser(payload);
         
         // Ensure default role-appropriate starting tab
-        if (payload.role === "recruiter") {
-          setActiveTab("intake");
-        } else if (payload.role === "engineer") {
-          setActiveTab("engineer");
+        if (payload.role === "recruiter" || payload.role === "engineer" || payload.role === "admin") {
+          setActiveTab("assessment");
         } else if (payload.role === "ops") {
           setActiveTab("operations");
-        } else if (payload.role === "admin") {
-          setActiveTab("admin");
-        } else if (payload.role === "viewer") {
-          setActiveTab("dashboard");
         } else {
           setActiveTab("dashboard");
         }
@@ -299,14 +293,10 @@ export default function App() {
     localStorage.setItem("ksj_session", JSON.stringify(loggedInUser));
     
     // Auto shift onto assigned working panel
-    if (loggedInUser.role === "recruiter") {
-      setActiveTab("intake");
-    } else if (loggedInUser.role === "engineer") {
-      setActiveTab("engineer");
+    if (loggedInUser.role === "recruiter" || loggedInUser.role === "engineer" || loggedInUser.role === "admin") {
+      setActiveTab("assessment");
     } else if (loggedInUser.role === "ops") {
       setActiveTab("operations");
-    } else if (loggedInUser.role === "admin") {
-      setActiveTab("admin");
     } else {
       setActiveTab("dashboard");
     }
