@@ -69,6 +69,7 @@ interface AdminPanelProps {
   xpactAllocations?: XpactAllocation[];
   onUpdateBureauAllocations: (newAllocs: BureauAllocation[]) => Promise<boolean>;
   onUpdateXpactAllocations: (newAllocs: XpactAllocation[]) => Promise<boolean>;
+  onUpdateWorker?: (workerId: string, updates: Partial<Worker>) => Promise<boolean>;
 }
 
 export default function AdminPanel({
@@ -93,11 +94,12 @@ export default function AdminPanel({
   bureauAllocations = [],
   xpactAllocations = [],
   onUpdateBureauAllocations,
-  onUpdateXpactAllocations
+  onUpdateXpactAllocations,
+  onUpdateWorker
 }: AdminPanelProps) {
   
   // Navigation internal to Admin Settings panel
-  const [activeSubTab, setActiveSubTab] = useState<"project" | "quotas" | "companies" | "dropdowns" | "users" | "gdrive" | "bureau_xpact" | "worker_audit" | "clear_data">("project");
+  const [activeSubTab, setActiveSubTab] = useState<"project" | "quotas" | "companies" | "dropdowns" | "users" | "gdrive" | "bureau_xpact" | "worker_audit" | "clear_data" | "interview_admin">("project");
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [resetConfirmText, setResetConfirmText] = useState("");
@@ -134,6 +136,103 @@ export default function AdminPanel({
   const [auditCompany, setAuditCompany] = useState("All");
   const [auditStateFilter, setAuditStateFilter] = useState("All");
   const [selectedAuditWorker, setSelectedAuditWorker] = useState<Worker | null>(null);
+
+  // Sanken Overseas Assessment Entry - Admin States & Logic
+  const [interviewSearch, setInterviewSearch] = useState("");
+  const [interviewCompany, setInterviewCompany] = useState("All");
+  const [interviewResult, setInterviewResult] = useState("All");
+
+  const [editingInterviewId, setEditingInterviewId] = useState<string | null>(null);
+  const [editInterviewerName, setEditInterviewerName] = useState("");
+  const [editInterviewMarks, setEditInterviewMarks] = useState("");
+  const [editInterviewStatus, setEditInterviewStatus] = useState<"Pass" | "Fail" | "Pending">("Pending");
+  const [editTestRequired, setEditTestRequired] = useState(false);
+  const [editRemarks, setEditRemarks] = useState("");
+  const [isSavingInterview, setIsSavingInterview] = useState(false);
+
+  const assessedWorkers = useMemo(() => {
+    return workers.filter((w) => !!w.nic_number);
+  }, [workers]);
+
+  const filteredAssessedWorkers = useMemo(() => {
+    return assessedWorkers.filter((w) => {
+      const matchesSearch = 
+        !interviewSearch ||
+        (w.name && w.name.toLowerCase().includes(interviewSearch.toLowerCase())) ||
+        (w.nic_number && w.nic_number.toLowerCase().includes(interviewSearch.toLowerCase())) ||
+        (w.passport && w.passport.toLowerCase().includes(interviewSearch.toLowerCase())) ||
+        (w.category && w.category.toLowerCase().includes(interviewSearch.toLowerCase()));
+
+      const matchesCompany = 
+        interviewCompany === "All" || 
+        w.supply_company === interviewCompany;
+
+      const matchesResult = 
+        interviewResult === "All" || 
+        (interviewResult === "Pending" && (!w.interview_status || w.interview_status === "Pending")) ||
+        w.interview_status === interviewResult;
+
+      return matchesSearch && matchesCompany && matchesResult;
+    });
+  }, [assessedWorkers, interviewSearch, interviewCompany, interviewResult]);
+
+  const handleStartInterviewEdit = (w: Worker) => {
+    setEditingInterviewId(w.id);
+    setEditInterviewerName(w.interviewer_name || "");
+    setEditInterviewMarks(w.interview_marks || "");
+    setEditInterviewStatus((w.interview_status as "Pass" | "Fail" | "Pending") || "Pending");
+    setEditTestRequired(w.test_required === "Yes");
+    setEditRemarks(w.remarks || "");
+  };
+
+  const handleSaveInterviewEdit = async (workerId: string) => {
+    if (!onUpdateWorker) return;
+    setIsSavingInterview(true);
+    try {
+      const updates: Partial<Worker> = {
+        interviewer_name: editInterviewerName.trim(),
+        interview_marks: editInterviewMarks,
+        interview_status: editInterviewStatus,
+        test_required: editTestRequired ? "Yes" : "No",
+        remarks: editRemarks.trim()
+      };
+      const ok = await onUpdateWorker(workerId, updates);
+      if (ok) {
+        showSuccess("Interview evaluation updated successfully.");
+        setEditingInterviewId(null);
+        onRefresh();
+      } else {
+        showError("Failed to update interview evaluation.");
+      }
+    } catch (err) {
+      showError("Error updating interview record.");
+    } finally {
+      setIsSavingInterview(false);
+    }
+  };
+
+  const handleDeleteInterviewData = async (workerId: string) => {
+    if (!onUpdateWorker) return;
+    if (!window.confirm("Are you sure you want to completely clear and reset the assessment details for this worker? This will set status back to Pending and empty marks/remarks.")) return;
+    try {
+      const updates: Partial<Worker> = {
+        interviewer_name: "",
+        interview_marks: "",
+        interview_status: "Pending",
+        test_required: "No",
+        remarks: ""
+      };
+      const ok = await onUpdateWorker(workerId, updates);
+      if (ok) {
+        showSuccess("Assessment details reset to pending successfully.");
+        onRefresh();
+      } else {
+        showError("Failed to reset assessment.");
+      }
+    } catch (err) {
+      showError("Error resetting assessment record.");
+    }
+  };
 
   const [localBureau, setLocalBureau] = useState<BureauAllocation[]>([]);
   const [localXpact, setLocalXpact] = useState<XpactAllocation[]>([]);
@@ -789,6 +888,18 @@ export default function AdminPanel({
         >
           <Users2 className="w-3.5 h-3.5 inline mr-1.5" />
           WORKER AUDITS
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab("interview_admin")}
+          className={`px-4 py-2.5 text-[11px] font-sans uppercase tracking-widest border-b-2 font-bold whitespace-nowrap cursor-pointer transition-colors ${
+            activeSubTab === "interview_admin"
+              ? "border-accent text-accent"
+              : "border-transparent text-muted hover:text-ink"
+          }`}
+        >
+          <Sliders className="w-3.5 h-3.5 inline mr-1.5" />
+          INTERVIEW ENTRY ADMIN
         </button>
 
         <button
@@ -3503,6 +3614,286 @@ export default function AdminPanel({
             </div>
           );
         })()}
+
+        {activeSubTab === "interview_admin" && (
+          <div className="space-y-6 animate-fade-in font-sans">
+            
+            {/* Header / Stats Panel */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-card border border-line rounded-xl p-4 shadow-3xs">
+                <span className="text-[10px] font-bold text-muted uppercase tracking-wider block">Total Entry Records</span>
+                <span className="text-2xl font-bold text-ink block mt-1">{assessedWorkers.length}</span>
+                <span className="text-[10px] text-muted block mt-1">Pre-registered candidates with NICs</span>
+              </div>
+              <div className="bg-card border border-line rounded-xl p-4 shadow-3xs">
+                <span className="text-[10px] font-bold text-muted uppercase tracking-wider block">Passed Assessments</span>
+                <span className="text-2xl font-bold text-success-green block mt-1">
+                  {assessedWorkers.filter(w => w.interview_status === "Pass").length}
+                </span>
+                <span className="text-[10px] text-success-green/80 block mt-1">Ready for Visa processing gate</span>
+              </div>
+              <div className="bg-card border border-line rounded-xl p-4 shadow-3xs">
+                <span className="text-[10px] font-bold text-muted uppercase tracking-wider block">Failed / Pending</span>
+                <span className="text-2xl font-bold text-amber-600 block mt-1">
+                  {assessedWorkers.filter(w => w.interview_status === "Fail" || !w.interview_status || w.interview_status === "Pending").length}
+                </span>
+                <span className="text-[10px] text-amber-600 block mt-1">Requires re-assessment or hold</span>
+              </div>
+              <div className="bg-card border border-line rounded-xl p-4 shadow-3xs">
+                <span className="text-[10px] font-bold text-muted uppercase tracking-wider block">Practical Test Required</span>
+                <span className="text-2xl font-bold text-indigo-600 block mt-1">
+                  {assessedWorkers.filter(w => w.test_required === "Yes").length}
+                </span>
+                <span className="text-[10px] text-indigo-500 block mt-1">Flagged for physical evaluation</span>
+              </div>
+            </div>
+
+            {/* Filters Row */}
+            <div className="bg-card border border-line rounded-xl p-4 shadow-3xs flex flex-col md:flex-row gap-4 justify-between items-center select-none">
+              <div className="relative w-full md:w-80">
+                <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search by Name, NIC, Passport, Trade..."
+                  value={interviewSearch}
+                  onChange={(e) => setInterviewSearch(e.target.value)}
+                  className="w-full text-xs pl-9 pr-3 py-2 bg-paper/40 border border-line focus:border-accent rounded-lg outline-none"
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                <div className="w-full sm:w-48">
+                  <label className="text-[9px] font-bold text-muted uppercase tracking-wider block mb-1">Filter Supply Vendor</label>
+                  <select
+                    value={interviewCompany}
+                    onChange={(e) => setInterviewCompany(e.target.value)}
+                    className="w-full text-xs px-2.5 py-1.5 bg-paper/40 border border-line focus:border-accent rounded-lg outline-none"
+                  >
+                    <option value="All">All Supply Agencies</option>
+                    {companies.map(co => (
+                      <option key={co.id} value={co.name}>{co.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="w-full sm:w-44">
+                  <label className="text-[9px] font-bold text-muted uppercase tracking-wider block mb-1">Filter Result Status</label>
+                  <select
+                    value={interviewResult}
+                    onChange={(e) => setInterviewResult(e.target.value)}
+                    className="w-full text-xs px-2.5 py-1.5 bg-paper/40 border border-line focus:border-accent rounded-lg outline-none"
+                  >
+                    <option value="All">All Results</option>
+                    <option value="Pass">Pass</option>
+                    <option value="Fail">Fail</option>
+                    <option value="Pending">Pending</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* List / Management Table */}
+            <div className="bg-card border border-line rounded-xl shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-line bg-paper/10">
+                <h4 className="text-sm font-semibold text-ink font-display">Worker Development Tracker & Assessment Register</h4>
+                <p className="text-[11px] text-muted">Showing {filteredAssessedWorkers.length} candidate evaluation logs of {assessedWorkers.length} registered.</p>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-paper text-muted font-sans text-[10px] font-bold uppercase tracking-wider">
+                    <tr>
+                      <th className="p-3 w-48">Candidate Details</th>
+                      <th className="p-3 w-36">Supply Agency</th>
+                      <th className="p-3 w-32">Designation / Trade</th>
+                      <th className="p-3 w-40">Evaluator / Marks</th>
+                      <th className="p-3 w-28">Result Status</th>
+                      <th className="p-3 w-28">Test Req.</th>
+                      <th className="p-3">Remarks & Observations</th>
+                      <th className="p-3 text-right pr-4 w-32">Management Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line/40">
+                    {filteredAssessedWorkers.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="p-10 text-center text-muted font-sans text-xs">
+                          No pre-registered assessment entries found matching active filters.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredAssessedWorkers.map((w) => {
+                        const isEditing = editingInterviewId === w.id;
+
+                        return (
+                          <tr key={w.id} className={`hover:bg-paper/10 transition-colors ${isEditing ? "bg-amber-50/20" : ""}`}>
+                            
+                            {/* Candidate info */}
+                            <td className="p-3 font-sans">
+                              <div className="font-bold text-ink">{w.name}</div>
+                              <div className="text-[10px] text-muted mt-0.5 space-y-0.5">
+                                <span className="block font-mono">NIC: <strong className="text-slate-700">{w.nic_number || "—"}</strong></span>
+                                <span className="block font-mono">PPT: <strong className="text-slate-700">{w.passport || "—"}</strong></span>
+                                {w.sr_number && <span className="block font-mono">SR: <strong>{w.sr_number}</strong></span>}
+                              </div>
+                            </td>
+
+                            {/* Supply Agency */}
+                            <td className="p-3 text-stone-700 font-semibold">{w.supply_company}</td>
+
+                            {/* Designation */}
+                            <td className="p-3">
+                              <span className="inline-flex px-2 py-0.5 bg-accent/10 border border-accent/20 text-[10px] font-bold text-accent uppercase rounded">
+                                {w.category}
+                              </span>
+                            </td>
+
+                            {/* Evaluator & Marks */}
+                            <td className="p-3 font-sans">
+                              {isEditing ? (
+                                <div className="space-y-1.5">
+                                  <input
+                                    type="text"
+                                    placeholder="Interviewer Name"
+                                    value={editInterviewerName}
+                                    onChange={(e) => setEditInterviewerName(e.target.value)}
+                                    className="w-full text-xs px-2 py-1 bg-white border border-stone-300 rounded outline-none focus:border-accent"
+                                  />
+                                  <input
+                                    type="number"
+                                    placeholder="Marks (0-100)"
+                                    min="0"
+                                    max="100"
+                                    value={editInterviewMarks}
+                                    onChange={(e) => setEditInterviewMarks(e.target.value)}
+                                    className="w-full text-xs px-2 py-1 bg-white border border-stone-300 rounded outline-none focus:border-accent"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="space-y-1">
+                                  <div className="text-stone-700 font-medium">
+                                    {w.interviewer_name || <span className="text-stone-400 text-[11px] italic">Not Evaluated</span>}
+                                  </div>
+                                  {w.interview_marks !== undefined && w.interview_marks !== "" && (
+                                    <div className="text-[11px] text-slate-500 font-mono">
+                                      Marks Received: <strong className="text-indigo-700">{w.interview_marks} / 100</strong>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Status */}
+                            <td className="p-3">
+                              {isEditing ? (
+                                <select
+                                  value={editInterviewStatus}
+                                  onChange={(e) => setEditInterviewStatus(e.target.value as "Pass" | "Fail" | "Pending")}
+                                  className="text-xs px-1.5 py-1 bg-white border border-stone-300 rounded outline-none focus:border-accent w-full"
+                                >
+                                  <option value="Pending">Pending</option>
+                                  <option value="Pass">Pass</option>
+                                  <option value="Fail">Fail</option>
+                                </select>
+                              ) : (
+                                <span className={`inline-flex px-2 py-0.5 text-[10px] font-bold rounded uppercase tracking-wider ${
+                                  w.interview_status === "Pass" 
+                                    ? "bg-green-100 text-green-800" 
+                                    : w.interview_status === "Fail"
+                                    ? "bg-red-100 text-red-800"
+                                    : "bg-amber-100 text-amber-800"
+                                }`}>
+                                  {w.interview_status || "Pending"}
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Test Required */}
+                            <td className="p-3">
+                              {isEditing ? (
+                                <label className="flex items-center gap-1 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={editTestRequired}
+                                    onChange={(e) => setEditTestRequired(e.target.checked)}
+                                    className="rounded border-stone-300 text-accent focus:ring-accent"
+                                  />
+                                  <span className="text-[11px] font-medium text-stone-700">Yes</span>
+                                </label>
+                              ) : (
+                                <span className={`inline-flex px-2 py-0.5 text-[10px] font-bold rounded ${
+                                  w.test_required === "Yes" 
+                                    ? "bg-indigo-100 text-indigo-800" 
+                                    : "bg-stone-100 text-stone-600"
+                                }`}>
+                                  {w.test_required || "No"}
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Remarks */}
+                            <td className="p-3">
+                              {isEditing ? (
+                                <textarea
+                                  placeholder="Evaluation remarks..."
+                                  rows={2}
+                                  value={editRemarks}
+                                  onChange={(e) => setEditRemarks(e.target.value)}
+                                  className="w-full text-xs px-2 py-1 bg-white border border-stone-300 rounded outline-none focus:border-accent text-stone-850 font-sans"
+                                />
+                              ) : (
+                                <p className="text-[11px] text-stone-600 font-sans line-clamp-2 max-w-xs break-words whitespace-pre-wrap">
+                                  {w.remarks || "—"}
+                                </p>
+                              )}
+                            </td>
+
+                            {/* Actions */}
+                            <td className="p-3 text-right pr-4">
+                              {isEditing ? (
+                                <div className="flex flex-col gap-1">
+                                  <button
+                                    onClick={() => handleSaveInterviewEdit(w.id)}
+                                    disabled={isSavingInterview}
+                                    className="px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white font-bold text-[10px] rounded cursor-pointer transition-colors"
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingInterviewId(null)}
+                                    className="px-2.5 py-1 bg-stone-100 border border-stone-300 text-stone-600 font-bold text-[10px] rounded cursor-pointer hover:bg-stone-200 transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col gap-1 items-end">
+                                  <button
+                                    onClick={() => handleStartInterviewEdit(w)}
+                                    className="px-2 py-1 border border-stone-300 hover:bg-slate-50 text-[10px] font-bold text-stone-700 rounded transition-colors cursor-pointer animate-fade-in"
+                                  >
+                                    Edit Evaluation
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteInterviewData(w.id)}
+                                    className="text-[9.5px] font-mono text-stone-400 hover:text-bad underline transition-colors cursor-pointer"
+                                  >
+                                    Clear assessment
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        )}
 
         {activeSubTab === "clear_data" && (
           <div className="bg-card border border-red-200 rounded-xl p-6 shadow-sm space-y-6 animate-fade-in font-sans">

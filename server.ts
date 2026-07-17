@@ -488,7 +488,15 @@ async function startServer() {
       final_status_date: initDateStr,
       gate_reject_reason: "",
       admin2_submit_date: initDateStr,
-      nationality: (w as any).nationality || ""
+      nationality: (w as any).nationality || "",
+      sr_number: (w as any).sr_number || "",
+      employee_number: (w as any).employee_number || "",
+      nic_number: (w as any).nic_number || "",
+      remarks: (w as any).remarks || "",
+      interviewer_name: (w as any).interviewer_name || "",
+      interview_status: (w as any).interview_status || "Pending",
+      interview_marks: (w as any).interview_marks || "",
+      test_required: (w as any).test_required || "No"
     }));
 
     db.workers = [...createdWorkers, ...db.workers];

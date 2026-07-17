@@ -569,6 +569,7 @@ export default function App() {
             companies={companies}
             dropdownOptions={dropdownOptions}
             projectDetail={projectDetail}
+            projects={visibleProjects}
             onRefresh={fetchDbState}
             onBulkAdd={handleBulkAdd}
             onUpdateWorker={handleUpdateWorker}
@@ -590,6 +591,8 @@ export default function App() {
             onApproveWorker={handleApproveWorker}
             onHoldWorker={handleHoldWorker}
             onRejectWorker={handleRejectWorker}
+            onUpdateWorker={handleUpdateWorker}
+            currentUser={user}
           />
         );
       case "operations":
@@ -634,6 +637,7 @@ export default function App() {
             xpactAllocations={xpactAllocations}
             onUpdateBureauAllocations={handleUpdateBureauAllocations}
             onUpdateXpactAllocations={handleUpdateXpactAllocations}
+            onUpdateWorker={handleUpdateWorker}
           />
         );
       default:

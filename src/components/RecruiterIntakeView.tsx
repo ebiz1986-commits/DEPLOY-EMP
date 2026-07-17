@@ -30,6 +30,7 @@ interface RecruiterIntakeViewProps {
   companies: Company[];
   dropdownOptions: DropdownOption[];
   projectDetail?: ProjectDetail | null;
+  projects?: ProjectDetail[];
   onRefresh: () => void;
   onBulkAdd: (newWorkers: { name: string; passport: string; category: string; supply_company: string; nationality?: string; doc_link?: string; bulk_doc_link?: string }[]) => Promise<{ success: boolean; message?: string }>;
   onUpdateWorker: (id: string, updates: Partial<Worker>) => Promise<boolean>;
@@ -52,6 +53,7 @@ export default function RecruiterIntakeView({
   companies,
   dropdownOptions,
   projectDetail,
+  projects = [],
   onRefresh,
   onBulkAdd,
   onUpdateWorker,
@@ -61,6 +63,45 @@ export default function RecruiterIntakeView({
   
   // Bulk document link input state
   const [bulkDocLinkInput, setBulkDocLinkInput] = useState("");
+
+  // Sub-tab selection state inside Recruiter View
+  const [activeSubTab, setActiveSubTab] = useState<"bulk" | "interview">("bulk");
+
+  // Interview Entry Form State
+  const [interviewForm, setInterviewForm] = useState({
+    sr_number: "",
+    employee_number: "",
+    name: "",
+    nic_number: "",
+    passport: "",
+    category: "",
+    project_id: "",
+    remarks: "",
+    interviewer_name: "",
+    interview_status: "Pending" as "Pending" | "Pass" | "Fail",
+    interview_marks: "",
+    test_required: "No" as "Yes" | "No"
+  });
+  const [isInterviewSubmitting, setIsInterviewSubmitting] = useState(false);
+  const [editingWorkerId, setEditingWorkerId] = useState<string | null>(null);
+
+  const handleEditInterviewClick = (w: Worker) => {
+    setEditingWorkerId(w.id);
+    setInterviewForm({
+      sr_number: w.sr_number || "",
+      employee_number: w.employee_number || "",
+      name: w.name || "",
+      nic_number: w.nic_number || "",
+      passport: w.passport || "",
+      category: w.category || "",
+      project_id: w.project_id || "",
+      remarks: w.remarks || "",
+      interviewer_name: w.interviewer_name || "",
+      interview_status: w.interview_status || "Pending",
+      interview_marks: w.interview_marks || "",
+      test_required: w.test_required || "No"
+    });
+  };
 
   // Bulk entry lines
   const [rows, setRows] = useState<WorkerFormInput[]>([
@@ -269,10 +310,51 @@ export default function RecruiterIntakeView({
     }
   }, [defaultCompany, categories]);
 
+  React.useEffect(() => {
+    if (categories.length > 0 && !interviewForm.category) {
+      setInterviewForm(prev => ({ ...prev, category: categories[0].name }));
+    }
+  }, [categories]);
+
+  React.useEffect(() => {
+    if (projects.length > 0 && !interviewForm.project_id) {
+      setInterviewForm(prev => ({ ...prev, project_id: projects[0].id }));
+    }
+  }, [projects]);
+
   // Track passport validation errors
   const existingPassportSet = useMemo(() => {
     return new Set(workers.map(w => w.passport.trim().toUpperCase()));
   }, [workers]);
+
+  const [interviewSearch, setInterviewSearch] = useState("");
+
+  const interviewRecords = useMemo(() => {
+    return workers.filter((w) => {
+      // Must be an interview entry (indicated by having an nic_number, employee_number or interview_status, etc.)
+      const isInterview = !!w.nic_number || !!w.sr_number || !!w.employee_number || w.interview_status !== undefined;
+      if (!isInterview) return false;
+
+      // Filter by supply company according to the active company selection
+      if (currentUser?.role === "recruiter") {
+        return w.supply_company === defaultCompany;
+      } else {
+        return activeSupplyCompany === "All" ? true : w.supply_company === activeSupplyCompany;
+      }
+    });
+  }, [workers, currentUser, defaultCompany, activeSupplyCompany]);
+
+  const filteredInterviewRecords = useMemo(() => {
+    const term = interviewSearch.trim().toLowerCase();
+    if (!term) return interviewRecords;
+    return interviewRecords.filter(w => 
+      w.name.toLowerCase().includes(term) ||
+      (w.passport && w.passport.toLowerCase().includes(term)) ||
+      (w.nic_number && w.nic_number.toLowerCase().includes(term)) ||
+      (w.employee_number && w.employee_number.toLowerCase().includes(term)) ||
+      (w.sr_number && w.sr_number.toLowerCase().includes(term))
+    );
+  }, [interviewRecords, interviewSearch]);
 
   // Calculations of duplicate passports within currently typed rows
   const rowDuplicates = useMemo(() => {
@@ -447,6 +529,134 @@ export default function RecruiterIntakeView({
       setErrorMessage("Database write timed out.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmitInterview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    // Validate mandatory NIC field
+    if (!interviewForm.nic_number.trim()) {
+      setErrorMessage("NIC Number is mandatory for Interview Entry.");
+      return;
+    }
+
+    if (!interviewForm.name.trim()) {
+      setErrorMessage("Full Name (as per passport) is required.");
+      return;
+    }
+
+    if (!interviewForm.category) {
+      setErrorMessage("Please select a Designation / Trade.");
+      return;
+    }
+
+    if (!interviewForm.project_id) {
+      setErrorMessage("Please select a Project (site).");
+      return;
+    }
+
+    // Check duplicate passport or NIC
+    const passportUpper = interviewForm.passport.trim().toUpperCase();
+    const nicTrimmed = interviewForm.nic_number.trim();
+
+    if (passportUpper && workers.some(w => w.id !== editingWorkerId && w.passport.trim().toUpperCase() === passportUpper)) {
+      setErrorMessage(`Validation Failure: Passport Number "${passportUpper}" already exists in the system master database.`);
+      return;
+    }
+
+    if (workers.some(w => w.id !== editingWorkerId && w.nic_number && w.nic_number.trim() === nicTrimmed)) {
+      setErrorMessage(`Validation Failure: NIC Number "${nicTrimmed}" already exists in the system master database.`);
+      return;
+    }
+
+    setIsInterviewSubmitting(true);
+    try {
+      if (editingWorkerId) {
+        const updates: Partial<Worker> = {
+          name: interviewForm.name.trim(),
+          passport: passportUpper || `ID-${nicTrimmed}`,
+          category: interviewForm.category,
+          project_id: interviewForm.project_id,
+          sr_number: interviewForm.sr_number.trim(),
+          employee_number: interviewForm.employee_number.trim(),
+          nic_number: nicTrimmed,
+          remarks: interviewForm.remarks.trim(),
+          interviewer_name: interviewForm.interviewer_name.trim(),
+          interview_status: interviewForm.interview_status,
+          interview_marks: interviewForm.interview_marks.trim(),
+          test_required: interviewForm.test_required,
+        };
+
+        const success = await onUpdateWorker(editingWorkerId, updates);
+        if (success) {
+          setSuccessMessage(`Success: Interview Entry for "${interviewForm.name}" successfully updated.`);
+          setEditingWorkerId(null);
+          setInterviewForm({
+            sr_number: "",
+            employee_number: "",
+            name: "",
+            nic_number: "",
+            passport: "",
+            category: categories[0]?.name || "",
+            project_id: projects[0]?.id || "",
+            remarks: "",
+            interviewer_name: "",
+            interview_status: "Pending",
+            interview_marks: "",
+            test_required: "No"
+          });
+          onRefresh();
+        } else {
+          setErrorMessage("Failed to update interview record.");
+        }
+      } else {
+        const payload = [{
+          name: interviewForm.name.trim(),
+          passport: passportUpper || `ID-${nicTrimmed}`, // Use ID-NIC if passport is empty
+          category: interviewForm.category,
+          supply_company: activeSupplyCompany,
+          project_id: interviewForm.project_id,
+          sr_number: interviewForm.sr_number.trim(),
+          employee_number: interviewForm.employee_number.trim(),
+          nic_number: nicTrimmed,
+          remarks: interviewForm.remarks.trim(),
+          interviewer_name: interviewForm.interviewer_name.trim(),
+          interview_status: interviewForm.interview_status,
+          interview_marks: interviewForm.interview_marks.trim(),
+          test_required: interviewForm.test_required,
+          state: "pending" as const,
+          status: "Pending",
+          nationality: dropdownOptions.filter(d => d.field === "nationality")[0]?.value || "Nepali"
+        }];
+
+        const res = await onBulkAdd(payload);
+        if (res.success) {
+          setSuccessMessage(`Success: Interview Entry for "${interviewForm.name}" successfully stored in the central table.`);
+          setInterviewForm({
+            sr_number: "",
+            employee_number: "",
+            name: "",
+            nic_number: "",
+            passport: "",
+            category: categories[0]?.name || "",
+            project_id: projects[0]?.id || "",
+            remarks: "",
+            interviewer_name: "",
+            interview_status: "Pending",
+            interview_marks: "",
+            test_required: "No"
+          });
+        } else {
+          setErrorMessage(res.message || "An error occurred during submission.");
+        }
+      }
+    } catch (err) {
+      setErrorMessage("Database write failed or timed out.");
+    } finally {
+      setIsInterviewSubmitting(false);
     }
   };
 
@@ -639,6 +849,33 @@ export default function RecruiterIntakeView({
   return (
     <div id="recruiter-intake-viewport" className="flex-1 overflow-y-auto p-6 space-y-6 max-h-screen">
       
+      {/* Tab bar to switch between Bulk fast-intake and Interview Entry */}
+      <div className="flex border-b border-slate-200" id="recruiter-intake-tabs">
+        <button
+          type="button"
+          onClick={() => { setActiveSubTab("bulk"); setErrorMessage(""); setSuccessMessage(""); }}
+          className={`px-6 py-3 text-xs font-mono font-bold uppercase border-b-2 transition-all cursor-pointer ${
+            activeSubTab === "bulk"
+              ? "border-accent text-accent animate-fade-in"
+              : "border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300"
+          }`}
+        >
+          Roster Intake &amp; Pipeline
+        </button>
+        <button
+          type="button"
+          id="tab-interview-entry"
+          onClick={() => { setActiveSubTab("interview"); setErrorMessage(""); setSuccessMessage(""); }}
+          className={`px-6 py-3 text-xs font-mono font-bold uppercase border-b-2 transition-all cursor-pointer ${
+            activeSubTab === "interview"
+              ? "border-accent text-accent animate-fade-in"
+              : "border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300"
+          }`}
+        >
+          Interview Entry
+        </button>
+      </div>
+
       {/* Messages */}
       {errorMessage && (
         <div className="p-4 bg-red-50 text-bad border border-red-200 rounded-xl text-xs flex gap-3 items-start animate-fade-in font-sans">
@@ -660,8 +897,10 @@ export default function RecruiterIntakeView({
         </div>
       )}
 
-      {/* Stacked Layout: Bulk Add Form (1st), followed by Bureau Pending Queue */}
-      <div className="space-y-6">
+      {activeSubTab === "bulk" ? (
+        <>
+          {/* Stacked Layout: Bulk Add Form (1st), followed by Bureau Pending Queue */}
+          <div className="space-y-6">
         
         {/* Bulk Intake Form Column */}
         <div className="w-full bg-card border border-slate-300 rounded-xl p-5 shadow-md space-y-4">
@@ -2055,6 +2294,383 @@ export default function RecruiterIntakeView({
           </table>
         </div>
       </div>
+    </>
+      ) : (
+        <div className="space-y-6 animate-fade-in" id="interview-entry-subtab">
+          {/* Beautiful Two-Column Interview Entry Form */}
+          <div className="bg-card border border-slate-300 rounded-xl p-5 shadow-md space-y-4">
+            <div className="border-b border-slate-200 pb-3 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-ink font-display flex items-center gap-2">
+                  <UserCheck2 className="w-4 text-accent" />
+                  <span>{editingWorkerId ? `Edit Interview Entry — ${interviewForm.name}` : "New Interview Entry Portal"}</span>
+                </h2>
+                <p className="text-xs text-slate-500">
+                  {editingWorkerId 
+                    ? "Modify pre-registered candidate interview details. Changes synchronize instantly across Sanken Overseas portals."
+                    : "Register candidate interview and assessment data. Values populate the Sanken Overseas Assessment Portal for Engineers."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onRefresh()}
+                className="text-[10px] font-mono text-slate-700 hover:text-accent border border-slate-300 rounded px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 cursor-pointer font-semibold shadow-sm"
+              >
+                Sync DB
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitInterview} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* SR Number */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block">SR Number</label>
+                  <input
+                    type="text"
+                    value={interviewForm.sr_number}
+                    onChange={(e) => setInterviewForm(prev => ({ ...prev, sr_number: e.target.value }))}
+                    placeholder="e.g. SR-1025"
+                    className="w-full text-xs bg-white border border-slate-350 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 rounded-lg p-2.5 outline-none font-medium shadow-3xs text-slate-900"
+                  />
+                </div>
+
+                {/* Employee Number */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block">Employee Number</label>
+                  <input
+                    type="text"
+                    value={interviewForm.employee_number}
+                    onChange={(e) => setInterviewForm(prev => ({ ...prev, employee_number: e.target.value }))}
+                    placeholder="e.g. EMP-9052"
+                    className="w-full text-xs bg-white border border-slate-350 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 rounded-lg p-2.5 outline-none font-medium shadow-3xs text-slate-900"
+                  />
+                </div>
+
+                {/* Full Name */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block">
+                    Full Name (as per passport) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={interviewForm.name}
+                    onChange={(e) => setInterviewForm(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="e.g. RAMESH PRASAD ADHIKARI"
+                    className="w-full text-xs bg-white border border-slate-350 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 rounded-lg p-2.5 outline-none font-medium shadow-3xs text-slate-900"
+                  />
+                </div>
+
+                {/* NIC Number */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block flex items-center justify-between">
+                    <span>NIC Number <span className="text-red-500">*</span></span>
+                    <span className="text-[10px] font-mono text-amber-600 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">Mandatory</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={interviewForm.nic_number}
+                    onChange={(e) => setInterviewForm(prev => ({ ...prev, nic_number: e.target.value }))}
+                    placeholder="e.g. 12-34-56789 (Mandatory ID card)"
+                    className="w-full text-xs bg-white border border-slate-350 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 rounded-lg p-2.5 outline-none font-medium shadow-3xs text-slate-900"
+                  />
+                </div>
+
+                {/* Passport Number */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block">Passport Number</label>
+                  <input
+                    type="text"
+                    value={interviewForm.passport}
+                    onChange={(e) => setInterviewForm(prev => ({ ...prev, passport: e.target.value }))}
+                    placeholder="e.g. PN-123456"
+                    className="w-full text-xs bg-white border border-slate-350 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 rounded-lg p-2.5 outline-none font-mono font-medium shadow-3xs text-slate-900"
+                  />
+                </div>
+
+                {/* Organization */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block flex items-center gap-1.5">
+                    <Lock className="w-3 h-3 text-slate-400" />
+                    <span>Organization (Auto Recruiting Agency)</span>
+                  </label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={activeSupplyCompany}
+                    className="w-full text-xs bg-slate-100 border border-slate-300 rounded-lg p-2.5 outline-none font-medium shadow-3xs text-slate-500 cursor-not-allowed"
+                  />
+                </div>
+
+                {/* Designation / Trade */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block">Designation / Trade</label>
+                  <select
+                    value={interviewForm.category}
+                    onChange={(e) => setInterviewForm(prev => ({ ...prev, category: e.target.value }))}
+                    className="w-full text-xs bg-white border border-slate-350 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 rounded-lg p-2.5 outline-none font-semibold shadow-3xs text-slate-900 cursor-pointer"
+                  >
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.name}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Project (site) */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block">Project (site)</label>
+                  <select
+                    value={interviewForm.project_id}
+                    onChange={(e) => setInterviewForm(prev => ({ ...prev, project_id: e.target.value }))}
+                    className="w-full text-xs bg-white border border-slate-350 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 rounded-lg p-2.5 outline-none font-semibold shadow-3xs text-slate-900 cursor-pointer"
+                  >
+                    {projects.map(proj => (
+                      <option key={proj.id} value={proj.id}>{proj.name} ({proj.location})</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Interviewer Name */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block flex items-center gap-1.5">
+                    <Lock className="w-3 h-3 text-slate-400" />
+                    <span>Interviewer Name (Engineer Only)</span>
+                  </label>
+                  <input
+                    type="text"
+                    disabled
+                    value={interviewForm.interviewer_name}
+                    onChange={(e) => setInterviewForm(prev => ({ ...prev, interviewer_name: e.target.value }))}
+                    placeholder="Will be filled by site engineer"
+                    className="w-full text-xs bg-slate-100 border border-slate-300 rounded-lg p-2.5 outline-none font-medium shadow-3xs text-slate-500 cursor-not-allowed"
+                  />
+                </div>
+
+                {/* Pass or Fail */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block flex items-center gap-1.5">
+                    <Lock className="w-3 h-3 text-slate-400" />
+                    <span>Pass or Fail (Engineer Only)</span>
+                  </label>
+                  <select
+                    disabled
+                    value={interviewForm.interview_status}
+                    onChange={(e) => setInterviewForm(prev => ({ ...prev, interview_status: e.target.value as any }))}
+                    className="w-full text-xs bg-slate-100 border border-slate-300 rounded-lg p-2.5 outline-none font-semibold shadow-3xs text-slate-500 cursor-not-allowed"
+                  >
+                    <option value="Pending">Pending Evaluation</option>
+                    <option value="Pass">Pass</option>
+                    <option value="Fail">Fail</option>
+                  </select>
+                </div>
+
+                {/* Marks Received */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block flex items-center gap-1.5">
+                    <Lock className="w-3 h-3 text-slate-400" />
+                    <span>Marks Received (Engineer Only)</span>
+                  </label>
+                  <input
+                    type="text"
+                    disabled
+                    value={interviewForm.interview_marks}
+                    onChange={(e) => setInterviewForm(prev => ({ ...prev, interview_marks: e.target.value }))}
+                    placeholder="Awaiting engineer assessment"
+                    className="w-full text-xs bg-slate-100 border border-slate-300 rounded-lg p-2.5 outline-none font-medium shadow-3xs text-slate-500 cursor-not-allowed"
+                  />
+                </div>
+
+                {/* Test Required */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block flex items-center gap-1.5">
+                    <Lock className="w-3 h-3 text-slate-400" />
+                    <span>Test Required or Not (Engineer Only)</span>
+                  </label>
+                  <select
+                    disabled
+                    value={interviewForm.test_required}
+                    onChange={(e) => setInterviewForm(prev => ({ ...prev, test_required: e.target.value as any }))}
+                    className="w-full text-xs bg-slate-100 border border-slate-300 rounded-lg p-2.5 outline-none font-semibold shadow-3xs text-slate-500 cursor-not-allowed"
+                  >
+                    <option value="No">No</option>
+                    <option value="Yes">Yes</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Remarks */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-700 block">Remarks</label>
+                <textarea
+                  value={interviewForm.remarks}
+                  onChange={(e) => setInterviewForm(prev => ({ ...prev, remarks: e.target.value }))}
+                  placeholder="Additional notes about qualifications or assessment..."
+                  rows={3}
+                  className="w-full text-xs bg-white border border-slate-350 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 rounded-lg p-2.5 outline-none font-medium shadow-3xs text-slate-900"
+                />
+              </div>
+
+              {/* Actions Button Panel */}
+              <div className="flex items-center gap-3 justify-end pt-2">
+                {editingWorkerId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingWorkerId(null);
+                      setInterviewForm({
+                        sr_number: "",
+                        employee_number: "",
+                        name: "",
+                        nic_number: "",
+                        passport: "",
+                        category: "",
+                        project_id: projects[0]?.id || "",
+                        remarks: "",
+                        interviewer_name: "",
+                        interview_status: "Pending",
+                        interview_marks: "",
+                        test_required: "No"
+                      });
+                    }}
+                    className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 border-2 border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer shadow-sm"
+                  >
+                    Cancel Edit
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  disabled={isInterviewSubmitting}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-accent hover:bg-accent/95 disabled:opacity-50 text-white rounded-lg text-xs font-mono uppercase tracking-wider font-bold transition-all cursor-pointer shadow-md"
+                >
+                  {isInterviewSubmitting ? "Saving..." : editingWorkerId ? "Update Interview Record" : "Store Interview Entry Record"}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Table: Registered Interview Entries List */}
+          <div className="bg-card border border-line rounded-xl shadow-sm overflow-hidden font-sans space-y-4">
+            <div className="p-5 border-b border-line bg-paper/25 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-bold text-ink uppercase tracking-wider font-mono flex items-center gap-2">
+                  <ClipboardList className="w-4 h-4 text-accent" />
+                  <span>Interview Entry Archives — {currentUser?.role === "recruiter" ? defaultCompany : activeSupplyCompany}</span>
+                </h3>
+                <p className="text-xs text-muted mt-0.5">
+                  Stored interview roster records with designated site projects and assessment marks.
+                </p>
+              </div>
+
+              <div className="relative w-full sm:w-72">
+                <input
+                  type="text"
+                  placeholder="Search name, NIC, or passport..."
+                  value={interviewSearch}
+                  onChange={(e) => setInterviewSearch(e.target.value)}
+                  className="w-full text-xs bg-paper border border-line rounded-lg py-2 pl-9 pr-4 text-ink focus:border-accent outline-none font-mono"
+                />
+                <Search className="w-3.5 h-3.5 text-muted absolute left-3 top-3.5" />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-sans text-ink">
+                <thead className="bg-paper text-muted font-mono text-[9px] uppercase tracking-wider">
+                  <tr>
+                    <th className="p-3 pl-5">SR / Employee No</th>
+                    <th className="p-3">Candidate &amp; NIC Number</th>
+                    <th className="p-3">Passport Number</th>
+                    <th className="p-3">Designation / Project</th>
+                    <th className="p-3">Interviewer &amp; Marks</th>
+                    <th className="p-3 text-center">Interview Result</th>
+                    <th className="p-3 text-center">Test Required</th>
+                    <th className="p-3 pr-5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line/45">
+                  {filteredInterviewRecords.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="p-10 text-center text-muted text-xs">
+                        No pre-entered interview records found. Fill out the form above to save a new interview.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredInterviewRecords.map((w) => {
+                      let resColor = "bg-amber-50 text-amber-700 border-amber-200";
+                      if (w.interview_status === "Pass") {
+                        resColor = "bg-green-50 text-success-green border-green-200";
+                      } else if (w.interview_status === "Fail") {
+                        resColor = "bg-red-50 text-bad border-red-200";
+                      }
+
+                      const projName = projects.find(p => p.id === w.project_id)?.name || "Default Site";
+
+                      return (
+                        <tr key={w.id} className="hover:bg-paper/10 transition-colors font-semibold">
+                          <td className="p-3 pl-5 font-mono text-[11px] text-slate-700">
+                            <div>SR: {w.sr_number || "—"}</div>
+                            <div className="text-[10px] text-slate-400">EMP: {w.employee_number || "—"}</div>
+                          </td>
+                          <td className="p-3">
+                            <div className="font-bold text-slate-900">{w.name}</div>
+                            <div className="text-[10px] text-slate-500 font-semibold font-mono">NIC: {w.nic_number || "—"}</div>
+                          </td>
+                          <td className="p-3 font-mono text-slate-800">{w.passport || "—"}</td>
+                          <td className="p-3">
+                            <div className="text-slate-900">{w.category}</div>
+                            <div className="text-[10px] text-indigo-700">{projName}</div>
+                          </td>
+                          <td className="p-3 text-slate-800">
+                            <div className="text-slate-700 font-medium">Interviewer: {w.interviewer_name || "—"}</div>
+                            <div className="text-[10px] font-mono text-slate-500">Marks: {w.interview_marks || "—"}</div>
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className={`inline-flex px-2 py-0.5 text-[10px] uppercase font-mono font-bold rounded-full border ${resColor}`}>
+                              {w.interview_status || "Pending"}
+                            </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className={`inline-flex px-2 py-0.5 text-[10px] font-semibold rounded ${
+                              w.test_required === "Yes" ? "bg-amber-100 text-amber-850 border border-amber-200" : "bg-slate-100 text-slate-600"
+                            }`}>
+                              {w.test_required || "No"}
+                            </span>
+                          </td>
+                          <td className="p-3 pr-5 text-right whitespace-nowrap">
+                            <div className="inline-flex items-center gap-2 justify-end">
+                              <button
+                                onClick={() => handleEditInterviewClick(w)}
+                                className="px-2 py-1 text-[10px] font-mono font-bold bg-white hover:bg-slate-50 text-indigo-600 border border-indigo-200 rounded cursor-pointer shadow-3xs"
+                              >
+                                Edit
+                              </button>
+                              {currentUser?.role === "admin" && (
+                                <button
+                                  onClick={async () => {
+                                    if (onDeleteWorker && confirm(`Are you sure you want to delete interview candidate "${w.name}"?`)) {
+                                      await onDeleteWorker(w.id);
+                                      onRefresh();
+                                    }
+                                  }}
+                                  className="p-1 text-bad hover:bg-red-50 rounded cursor-pointer animate-fade-in"
+                                  title="Delete Record"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

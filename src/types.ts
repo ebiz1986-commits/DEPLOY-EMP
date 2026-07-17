@@ -39,6 +39,14 @@ export interface Worker {
   admin2_submit_date?: string;
   admin2_reject_date?: string;
   admin2_resubmit_date?: string;
+  sr_number?: string;
+  employee_number?: string;
+  nic_number?: string;
+  remarks?: string;
+  interviewer_name?: string;
+  interview_status?: 'Pending' | 'Pass' | 'Fail';
+  interview_marks?: string;
+  test_required?: 'Yes' | 'No';
 }
 
 export interface Category {
